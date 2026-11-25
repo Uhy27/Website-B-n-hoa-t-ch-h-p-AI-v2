@@ -584,12 +584,47 @@ function openQuickView(productId) {
             ` : ''}
           </div>
 
-          <!-- Thông số & Thành phần hoa -->
-          <div class="space-y-2 text-sm text-gray-600 mb-5 pb-5 border-b border-gray-100">
-            <p><strong class="text-gray-800">Hoa thành phần:</strong> ${product.flowerTypes || product.primary_flower || ''}</p>
-            <p><strong class="text-gray-800">Kích thước:</strong> ${product.size || product.size_dimensions || 'Tiêu chuẩn Bloomora'}</p>
-            <p><strong class="text-gray-800">Tone màu:</strong> ${product.colorName || product.color_name || 'Tự nhiên'}</p>
-            <p class="italic text-gray-500 pt-1">"${product.meaning || 'Mang lại niềm vui và may mắn trọn vẹn.'}"</p>
+          <!-- Thông số & Thành phần hoa chi tiết Bloomora -->
+          ${product.short_description ? `
+            <p class="text-stone-600 text-xs leading-relaxed mb-3.5 bg-stone-50 p-2.5 rounded-xl border border-stone-200/60">
+              <i class="ph ph-sparkle text-rose-600 mr-1"></i>${escapeHtml(product.short_description)}
+            </p>
+          ` : ''}
+
+          <div class="grid grid-cols-2 gap-2 text-xs text-stone-600 mb-4 pb-4 border-b border-stone-100">
+            <div class="p-2 bg-stone-50/80 rounded-lg">
+              <span class="text-stone-400 block text-[10px] uppercase font-bold tracking-wider">Hoa chủ đạo</span>
+              <strong class="text-stone-800 text-[11px]">${escapeHtml(product.primary_flower || product.flowerTypes || 'Hoa tươi chọn lọc')}</strong>
+            </div>
+            <div class="p-2 bg-stone-50/80 rounded-lg">
+              <span class="text-stone-400 block text-[10px] uppercase font-bold tracking-wider">Hoa & lá phụ</span>
+              <span class="text-stone-800 text-[11px] font-medium">${escapeHtml(product.secondary_flower || 'Lá bạc, hoa baby, hoa sao')}</span>
+            </div>
+            <div class="p-2 bg-stone-50/80 rounded-lg">
+              <span class="text-stone-400 block text-[10px] uppercase font-bold tracking-wider">Số lượng cành</span>
+              <strong class="text-stone-800 text-[11px]">${product.stem_count ? product.stem_count + ' cành tuyển chọn' : 'Theo dáng cắm chuẩn'}</strong>
+            </div>
+            <div class="p-2 bg-stone-50/80 rounded-lg">
+              <span class="text-stone-400 block text-[10px] uppercase font-bold tracking-wider">Tone màu</span>
+              <span class="text-stone-800 text-[11px] font-medium">${escapeHtml(product.colorName || product.color_name || 'Tự nhiên rực rỡ')}</span>
+            </div>
+            <div class="p-2 bg-stone-50/80 rounded-lg">
+              <span class="text-stone-400 block text-[10px] uppercase font-bold tracking-wider">Kích thước</span>
+              <span class="text-stone-800 text-[11px] font-medium">${escapeHtml(product.size || product.size_dimensions || 'Tiêu chuẩn Bloomora')}</span>
+            </div>
+            <div class="p-2 bg-stone-50/80 rounded-lg">
+              <span class="text-stone-400 block text-[10px] uppercase font-bold tracking-wider">Đóng gói & Giấy gói</span>
+              <span class="text-stone-800 text-[11px] font-medium truncate block" title="${escapeHtml(product.wrapping_paper || 'Giấy gói cao cấp')}">${escapeHtml(product.wrapping_paper || 'Giấy gói Hàn Quốc cao cấp, nơ lụa')}</span>
+            </div>
+          </div>
+
+          <div class="text-xs text-stone-500 mb-4 space-y-1.5">
+            <p class="italic text-stone-600"><i class="ph ph-chat-centered-text text-rose-500 mr-1"></i><strong>Ý nghĩa:</strong> "${escapeHtml(product.meaning || 'Mang lại niềm vui, sự may mắn và hạnh phúc trọn vẹn.')}"</p>
+            ${product.care_guide ? `
+              <p class="text-[11px] text-amber-800 bg-amber-50/70 p-2 rounded-lg border border-amber-200/50">
+                <i class="ph ph-drop text-amber-600 mr-1"></i><strong>Cách chăm sóc:</strong> ${escapeHtml(product.care_guide)}
+              </p>
+            ` : ''}
           </div>
 
           <!-- Live Preview Băng Rôn Chúc Mừng -->

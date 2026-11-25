@@ -1204,13 +1204,15 @@ async function loadCategoryDropdown() {
 async function loadAdminProducts() {
   const cid = document.getElementById('productCategoryFilter')?.value || '0';
   const status = document.getElementById('productStatusFilter')?.value || '';
+  const stockStatus = document.getElementById('productStockFilter')?.value || '';
+  const sort = document.getElementById('productSortFilter')?.value || 'id_desc';
   const search = document.getElementById('productSearchInput')?.value || '';
   const tbody = document.getElementById('productsTableBody');
 
   if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-10 text-stone-400">Đang tải sản phẩm hoa tươi...</td></tr>`;
 
   try {
-    const q = new URLSearchParams({ category_id: cid, status, search, limit: 50 });
+    const q = new URLSearchParams({ category_id: cid, status, stock_status: stockStatus, sort, search, limit: 100 });
     const res = await fetch(`../api/admin/products.php?${q.toString()}`);
     if (res.status === 401) { window.location.href = 'login.php'; return; }
     const json = await res.json();
@@ -1239,6 +1241,8 @@ function renderProductsTable(products) {
     const margin = Number(p.profit_margin) || 0;
     const marginColor = margin >= 35 ? 'text-emerald-600' : (margin >= 20 ? 'text-amber-600' : 'text-rose-600');
     const isLowStock = Number(p.stock_quantity) <= 5;
+    const formLabels = { bo: 'Bó hoa', gio: 'Giỏ hoa', hop: 'Hộp hoa', ke: 'Kệ hoa', lang: 'Lẵng hoa', chau: 'Chậu hoa' };
+    const formText = formLabels[p.product_form] || p.product_form || '';
 
     return `
       <tr class="hover:bg-stone-50 transition">
@@ -1247,17 +1251,19 @@ function renderProductsTable(products) {
             <img src="${escapeHtml(p.thumbnail)}" onclick="openAdminLightbox('${escapeHtml(p.thumbnail)}')" alt="${escapeHtml(p.name)}" class="w-12 h-12 rounded-xl object-cover border border-stone-200 cursor-pointer shadow-sm" />
             <div>
               <h4 class="font-bold text-stone-900 text-xs">${escapeHtml(p.name)}</h4>
-              <span class="text-[11px] text-stone-400">${escapeHtml(p.primary_flower || 'Hoa tuyển chọn')}</span>
+              <span class="text-[11px] text-stone-400 block">${escapeHtml(p.primary_flower || 'Hoa tuyển chọn')}${p.stem_count ? ` • ${p.stem_count} cành` : ''}${p.color_name ? ` • ${escapeHtml(p.color_name)}` : ''}</span>
+              ${p.short_description ? `<p class="text-[10px] text-stone-500 line-clamp-1 italic max-w-xs">${escapeHtml(p.short_description)}</p>` : ''}
             </div>
           </div>
         </td>
         <td class="py-3 px-4">
           <span class="font-mono font-semibold text-stone-700 block">${escapeHtml(p.sku)}</span>
-          <span class="text-[11px] text-stone-400">${escapeHtml(p.categoryName || 'Hoa Tươi')}</span>
+          <span class="text-[11px] text-stone-500 font-medium">${escapeHtml(p.categoryName || 'Hoa Tươi')}</span>
+          ${formText ? `<span class="inline-block mt-0.5 px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded text-[10px]">${formText}</span>` : ''}
         </td>
         <td class="py-3 px-4 font-bold text-stone-900 font-mono">
           ${formatMoney(p.price)}
-          ${p.sale_price ? `<span class="block text-[10px] text-rose-600 line-through">${formatMoney(p.sale_price)}</span>` : ''}
+          ${p.sale_price && p.sale_price > p.price ? `<span class="block text-[10px] text-rose-600 line-through">${formatMoney(p.sale_price)}</span>` : ''}
         </td>
         <td class="py-3 px-4 font-mono text-stone-600">
           ${formatMoney(p.cost_price)}
@@ -1275,11 +1281,14 @@ function renderProductsTable(products) {
           </span>
         </td>
         <td class="py-3 px-4 text-right whitespace-nowrap space-x-1">
-          <button onclick="openProductModal(${p.id})" class="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition" title="Chỉnh sửa">
+          <button onclick="openProductModal(${p.id})" class="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition" title="Chỉnh sửa chi tiết">
             <i class="ph ph-pencil-simple text-sm"></i>
           </button>
           <button onclick="handleToggleProductActive(${p.id}, ${p.is_active})" class="p-1.5 ${p.is_active == 1 ? 'hover:bg-rose-50 text-rose-600' : 'hover:bg-emerald-50 text-emerald-600'} rounded-lg transition" title="${p.is_active == 1 ? 'Tạm ẩn mẫu này' : 'Mở bán lại'}">
             <i class="ph ${p.is_active == 1 ? 'ph-eye-slash' : 'ph-eye'} text-sm"></i>
+          </button>
+          <button onclick="handleDeleteProduct(${p.id}, '${escapeHtml(p.name).replace(/'/g, "\\'")}')" class="p-1.5 hover:bg-rose-100 text-rose-500 rounded-lg transition" title="Lưu trữ / Xóa">
+            <i class="ph ph-trash text-sm"></i>
           </button>
         </td>
       </tr>
@@ -1296,16 +1305,25 @@ function openProductModal(prodId = null) {
     if (!p) return;
     title.textContent = `Chỉnh Sửa Sản Phẩm: ${p.name}`;
     document.getElementById('prodEditId').value = p.id;
-    document.getElementById('prodName').value = p.name;
-    document.getElementById('prodSku').value = p.sku;
-    document.getElementById('prodCategoryId').value = p.category_id;
+    document.getElementById('prodName').value = p.name || '';
+    document.getElementById('prodSku').value = p.sku || '';
+    document.getElementById('prodCategoryId').value = p.category_id || 1;
+    document.getElementById('prodProductForm').value = p.product_form || 'bo';
     document.getElementById('prodPrimaryFlower').value = p.primary_flower || '';
-    document.getElementById('prodPrice').value = p.price;
+    document.getElementById('prodSecondaryFlower').value = p.secondary_flower || '';
+    document.getElementById('prodStemCount').value = (p.stem_count !== null && p.stem_count !== undefined) ? p.stem_count : '';
+    document.getElementById('prodColor').value = p.color || 'do';
+    document.getElementById('prodColorName').value = p.color_name || '';
+    document.getElementById('prodPrice').value = p.price || 0;
     document.getElementById('prodCostPrice').value = p.cost_price || 0;
     document.getElementById('prodSalePrice').value = p.sale_price || '';
-    document.getElementById('prodStockQty').value = p.stock_quantity;
-    document.getElementById('prodThumbnail').value = p.thumbnail;
+    document.getElementById('prodStockQty').value = p.stock_quantity || 0;
+    document.getElementById('prodSize').value = p.size_dimensions || '';
+    document.getElementById('prodWrappingPaper').value = p.wrapping_paper || '';
+    document.getElementById('prodThumbnail').value = p.thumbnail || '';
+    document.getElementById('prodShortDesc').value = p.short_description || '';
     document.getElementById('prodMeaning').value = p.meaning || '';
+    document.getElementById('prodCareGuide').value = p.care_guide || '';
     document.getElementById('prodIsActive').checked = p.is_active == 1;
     document.getElementById('prodIsFeatured').checked = p.is_featured == 1;
   } else {
@@ -1313,13 +1331,22 @@ function openProductModal(prodId = null) {
     document.getElementById('prodEditId').value = '';
     document.getElementById('prodName').value = '';
     document.getElementById('prodSku').value = 'FLW-' + Math.floor(1000 + Math.random() * 9000);
+    document.getElementById('prodProductForm').value = 'bo';
     document.getElementById('prodPrimaryFlower').value = '';
+    document.getElementById('prodSecondaryFlower').value = '';
+    document.getElementById('prodStemCount').value = '';
+    document.getElementById('prodColor').value = 'do';
+    document.getElementById('prodColorName').value = '';
     document.getElementById('prodPrice').value = '';
     document.getElementById('prodCostPrice').value = '';
     document.getElementById('prodSalePrice').value = '';
     document.getElementById('prodStockQty').value = '50';
-    document.getElementById('prodThumbnail').value = 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=600&q=80';
+    document.getElementById('prodSize').value = 'Cao 55cm x Rộng 40cm';
+    document.getElementById('prodWrappingPaper').value = 'Giấy xi măng vintage, nơ ruy băng lụa cao cấp';
+    document.getElementById('prodThumbnail').value = 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&q=80';
+    document.getElementById('prodShortDesc').value = '';
     document.getElementById('prodMeaning').value = '';
+    document.getElementById('prodCareGuide').value = 'Cắt vát gốc 45 độ, thay nước sạch mỗi ngày, tránh gió máy lạnh trực tiếp.';
     document.getElementById('prodIsActive').checked = true;
     document.getElementById('prodIsFeatured').checked = true;
   }
@@ -1339,13 +1366,22 @@ async function handleProductSubmit(e) {
     name: document.getElementById('prodName').value.trim(),
     sku: document.getElementById('prodSku').value.trim(),
     category_id: parseInt(document.getElementById('prodCategoryId').value, 10),
+    product_form: document.getElementById('prodProductForm').value,
     primary_flower: document.getElementById('prodPrimaryFlower').value.trim(),
+    secondary_flower: document.getElementById('prodSecondaryFlower').value.trim(),
+    stem_count: document.getElementById('prodStemCount').value !== '' ? parseInt(document.getElementById('prodStemCount').value, 10) : null,
+    color: document.getElementById('prodColor').value,
+    color_name: document.getElementById('prodColorName').value.trim(),
     price: parseFloat(document.getElementById('prodPrice').value),
     cost_price: parseFloat(document.getElementById('prodCostPrice').value || 0),
     sale_price: document.getElementById('prodSalePrice').value ? parseFloat(document.getElementById('prodSalePrice').value) : null,
     stock_quantity: parseInt(document.getElementById('prodStockQty').value, 10),
+    size_dimensions: document.getElementById('prodSize').value.trim(),
+    wrapping_paper: document.getElementById('prodWrappingPaper').value.trim(),
     thumbnail: document.getElementById('prodThumbnail').value.trim(),
+    short_description: document.getElementById('prodShortDesc').value.trim(),
     meaning: document.getElementById('prodMeaning').value.trim(),
+    care_guide: document.getElementById('prodCareGuide').value.trim(),
     is_active: document.getElementById('prodIsActive').checked ? 1 : 0,
     is_featured: document.getElementById('prodIsFeatured').checked ? 1 : 0,
   };
@@ -1391,6 +1427,24 @@ async function handleToggleProductActive(id, currentActive) {
       loadAdminProducts();
     }
   } catch (e) {}
+}
+
+async function handleDeleteProduct(id, name) {
+  if (!confirm(`Bạn có chắc muốn lưu trữ hoặc xóa mẫu hoa "${name}"?`)) return;
+  try {
+    const res = await fetch(`../api/admin/products.php?id=${id}`, {
+      method: 'DELETE'
+    });
+    const json = await res.json();
+    if (json.success) {
+      alert(json.message);
+      loadAdminProducts();
+    } else {
+      alert('Lỗi: ' + json.message);
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ.');
+  }
 }
 
 // ==========================================================================

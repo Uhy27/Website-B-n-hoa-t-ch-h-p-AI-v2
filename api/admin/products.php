@@ -25,90 +25,242 @@ try {
 
     if ($method === 'GET') {
         $page = max(1, (int)($_GET['page'] ?? 1));
-        $limit = max(1, min(100, (int)($_GET['limit'] ?? 20)));
+        $limit = max(1, min(100, (int)($_GET['limit'] ?? 50)));
         $offset = ($page - 1) * $limit;
         $search = trim((string)($_GET['search'] ?? ''));
         $categoryId = (int)($_GET['category_id'] ?? 0);
         $status = trim((string)($_GET['status'] ?? ''));
+        $stockStatus = trim((string)($_GET['stock_status'] ?? ''));
+        $sort = trim((string)($_GET['sort'] ?? 'id_desc'));
 
         $where = []; $params = [];
-        if ($search !== '') { $where[] = '(p.name LIKE :s1 OR p.sku LIKE :s2)'; $params[':s1']="%$search%"; $params[':s2']="%$search%"; }
-        if ($categoryId > 0) { $where[] = 'p.category_id = :cid'; $params[':cid']=$categoryId; }
-        if ($status === 'active') $where[] = 'p.is_active = 1';
-        elseif ($status === 'inactive') $where[] = 'p.is_active = 0';
+        if ($search !== '') {
+            $where[] = '(p.name LIKE :s1 OR p.sku LIKE :s2 OR p.primary_flower LIKE :s3 OR p.secondary_flower LIKE :s4)';
+            $params[':s1'] = "%$search%";
+            $params[':s2'] = "%$search%";
+            $params[':s3'] = "%$search%";
+            $params[':s4'] = "%$search%";
+        }
+        if ($categoryId > 0) {
+            $where[] = 'p.category_id = :cid';
+            $params[':cid'] = $categoryId;
+        }
+        if ($status === 'active') {
+            $where[] = 'p.is_active = 1';
+        } elseif ($status === 'inactive') {
+            $where[] = 'p.is_active = 0';
+        }
+
+        if ($stockStatus === 'in_stock') {
+            $where[] = 'p.stock_quantity > 5';
+        } elseif ($stockStatus === 'low_stock') {
+            $where[] = '(p.stock_quantity > 0 AND p.stock_quantity <= 5)';
+        } elseif ($stockStatus === 'out_of_stock') {
+            $where[] = 'p.stock_quantity = 0';
+        }
+
         $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
 
         $cst = $pdo->prepare("SELECT COUNT(*) FROM products p $whereSql");
-        $cst->execute($params); $total = (int)$cst->fetchColumn();
+        $cst->execute($params);
+        $total = (int)$cst->fetchColumn();
 
-        $sql = "SELECT p.id,p.category_id,c.name AS categoryName,p.sku,p.name,p.slug,p.price,p.sale_price,p.cost_price,p.stock_quantity,
-                       p.primary_flower,p.color,p.color_name,p.size_dimensions,p.meaning,p.tags,p.thumbnail,p.is_featured,p.is_active,
-                       p.rating,p.reviews_count,p.created_at,
-                       CASE WHEN p.price>0 THEN ROUND(((p.price - COALESCE(p.cost_price,0))/p.price)*100,2) ELSE 0 END AS profit_margin
-                FROM products p LEFT JOIN categories c ON c.id=p.category_id
-                $whereSql ORDER BY p.id DESC LIMIT :limit OFFSET :offset";
+        $orderBy = 'p.id DESC';
+        if ($sort === 'id_asc') $orderBy = 'p.id ASC';
+        elseif ($sort === 'price_asc') $orderBy = 'p.price ASC';
+        elseif ($sort === 'price_desc') $orderBy = 'p.price DESC';
+        elseif ($sort === 'stock_asc') $orderBy = 'p.stock_quantity ASC';
+        elseif ($sort === 'stock_desc') $orderBy = 'p.stock_quantity DESC';
+        elseif ($sort === 'name_asc') $orderBy = 'p.name ASC';
+        elseif ($sort === 'rating_desc') $orderBy = 'p.rating DESC, p.reviews_count DESC';
+
+        $sql = "SELECT p.id, p.category_id, c.name AS categoryName, p.sku, p.name, p.slug,
+                       p.price, p.sale_price, p.cost_price, p.stock_quantity,
+                       p.short_description, p.primary_flower, p.secondary_flower, p.stem_count,
+                       p.product_form, p.color, p.color_name, p.size_dimensions, p.wrapping_paper,
+                       p.care_guide, p.gallery, p.meaning, p.tags, p.thumbnail,
+                       p.is_featured, p.is_active, p.rating, p.reviews_count, p.created_at,
+                       CASE WHEN p.price > 0 THEN ROUND(((p.price - COALESCE(p.cost_price, 0)) / p.price) * 100, 2) ELSE 0 END AS profit_margin
+                FROM products p
+                LEFT JOIN categories c ON c.id = p.category_id
+                $whereSql
+                ORDER BY $orderBy
+                LIMIT :limit OFFSET :offset";
+
         $st = $pdo->prepare($sql);
-        foreach ($params as $k=>$v) $st->bindValue($k,$v);
-        $st->bindValue(':limit',$limit,PDO::PARAM_INT); $st->bindValue(':offset',$offset,PDO::PARAM_INT);
-        $st->execute(); $items = $st->fetchAll();
-        json_response(['success'=>true,'data'=>['total'=>$total,'page'=>$page,'limit'=>$limit,'items'=>$items]]);
+        foreach ($params as $k => $v) $st->bindValue($k, $v);
+        $st->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $st->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $st->execute();
+        $items = $st->fetchAll();
+
+        json_response([
+            'success' => true,
+            'data' => [
+                'total' => $total,
+                'page'  => $page,
+                'limit' => $limit,
+                'items' => $items
+            ]
+        ]);
     }
 
     if ($method === 'POST') {
         $in = get_json_input();
-        foreach (['name','category_id','sku','price','stock_quantity','thumbnail'] as $f) {
-            if (!isset($in[$f]) || trim((string)$in[$f]) === '') json_response(['success'=>false,'message'=>"Trường '$f' là bắt buộc."],400);
+        foreach (['name', 'category_id', 'sku', 'price', 'stock_quantity', 'thumbnail'] as $f) {
+            if (!isset($in[$f]) || trim((string)$in[$f]) === '') {
+                json_response(['success' => false, 'message' => "Trường '$f' là bắt buộc."], 400);
+            }
         }
         $sku = trim((string)$in['sku']);
-        $chk = $pdo->prepare('SELECT COUNT(*) FROM products WHERE sku=:sku'); $chk->execute([':sku'=>$sku]);
-        if ((int)$chk->fetchColumn() > 0) json_response(['success'=>false,'message'=>'Mã SKU đã tồn tại.'],409);
+        $chk = $pdo->prepare('SELECT COUNT(*) FROM products WHERE sku = :sku');
+        $chk->execute([':sku' => $sku]);
+        if ((int)$chk->fetchColumn() > 0) {
+            json_response(['success' => false, 'message' => 'Mã SKU đã tồn tại.'], 409);
+        }
 
         $baseSlug = trim((string)($in['slug'] ?? '')) !== '' ? trim((string)$in['slug']) : (string)$in['name'];
-        $slug = bloomora_slugify($baseSlug); if ($slug === '') $slug = 'san-pham';
-        $orig = $slug; $i=1;
-        while (true) { $s=$pdo->prepare('SELECT COUNT(*) FROM products WHERE slug=:s'); $s->execute([':s'=>$slug]); if((int)$s->fetchColumn()===0) break; $slug=$orig.'-'.$i++; }
+        $slug = bloomora_slugify($baseSlug);
+        if ($slug === '') $slug = 'san-pham';
+        $orig = $slug;
+        $i = 1;
+        while (true) {
+            $s = $pdo->prepare('SELECT COUNT(*) FROM products WHERE slug = :s');
+            $s->execute([':s' => $slug]);
+            if ((int)$s->fetchColumn() === 0) break;
+            $slug = $orig . '-' . $i++;
+        }
 
-        $sql = "INSERT INTO products (name,category_id,sku,slug,price,cost_price,sale_price,stock_quantity,primary_flower,color,color_name,size_dimensions,meaning,tags,thumbnail,is_featured,is_active,rating)
-                VALUES (:name,:category_id,:sku,:slug,:price,:cost_price,:sale_price,:stock_quantity,:primary_flower,:color,:color_name,:size_dimensions,:meaning,:tags,:thumbnail,:is_featured,:is_active,:rating)";
+        $sql = "INSERT INTO products (
+                    name, category_id, sku, slug, price, cost_price, sale_price, stock_quantity,
+                    short_description, primary_flower, secondary_flower, stem_count, product_form,
+                    color, color_name, size_dimensions, wrapping_paper, care_guide, gallery,
+                    meaning, tags, thumbnail, is_featured, is_active, rating
+                ) VALUES (
+                    :name, :category_id, :sku, :slug, :price, :cost_price, :sale_price, :stock_quantity,
+                    :short_description, :primary_flower, :secondary_flower, :stem_count, :product_form,
+                    :color, :color_name, :size_dimensions, :wrapping_paper, :care_guide, :gallery,
+                    :meaning, :tags, :thumbnail, :is_featured, :is_active, :rating
+                )";
         $st = $pdo->prepare($sql);
         $st->execute([
-            ':name'=>trim((string)$in['name']), ':category_id'=>(int)$in['category_id'], ':sku'=>$sku, ':slug'=>$slug,
-            ':price'=>(float)$in['price'], ':cost_price'=>(float)($in['cost_price'] ?? 0), ':sale_price'=>isset($in['sale_price']) && $in['sale_price']!=='' ? (float)$in['sale_price'] : null,
-            ':stock_quantity'=>(int)$in['stock_quantity'], ':primary_flower'=>$in['primary_flower'] ?? null, ':color'=>$in['color'] ?? null,
-            ':color_name'=>$in['color_name'] ?? null, ':size_dimensions'=>$in['size_dimensions'] ?? null, ':meaning'=>$in['meaning'] ?? null,
-            ':tags'=>$in['tags'] ?? null, ':thumbnail'=>trim((string)$in['thumbnail']), ':is_featured'=>(int)($in['is_featured'] ?? 1),
-            ':is_active'=>(int)($in['is_active'] ?? 1), ':rating'=>(float)($in['rating'] ?? 5.0)
+            ':name'              => trim((string)$in['name']),
+            ':category_id'       => (int)$in['category_id'],
+            ':sku'               => $sku,
+            ':slug'              => $slug,
+            ':price'             => (float)$in['price'],
+            ':cost_price'        => (float)($in['cost_price'] ?? 0),
+            ':sale_price'        => isset($in['sale_price']) && $in['sale_price'] !== '' ? (float)$in['sale_price'] : null,
+            ':stock_quantity'    => (int)$in['stock_quantity'],
+            ':short_description' => $in['short_description'] ?? null,
+            ':primary_flower'    => $in['primary_flower'] ?? null,
+            ':secondary_flower'  => $in['secondary_flower'] ?? null,
+            ':stem_count'        => isset($in['stem_count']) && $in['stem_count'] !== '' ? (int)$in['stem_count'] : null,
+            ':product_form'      => $in['product_form'] ?? null,
+            ':color'             => $in['color'] ?? null,
+            ':color_name'        => $in['color_name'] ?? null,
+            ':size_dimensions'   => $in['size_dimensions'] ?? null,
+            ':wrapping_paper'    => $in['wrapping_paper'] ?? null,
+            ':care_guide'        => $in['care_guide'] ?? null,
+            ':gallery'           => isset($in['gallery']) && is_array($in['gallery']) ? json_encode($in['gallery'], JSON_UNESCAPED_UNICODE) : ($in['gallery'] ?? null),
+            ':meaning'           => $in['meaning'] ?? null,
+            ':tags'              => $in['tags'] ?? null,
+            ':thumbnail'         => trim((string)$in['thumbnail']),
+            ':is_featured'       => (int)($in['is_featured'] ?? 1),
+            ':is_active'         => (int)($in['is_active'] ?? 1),
+            ':rating'            => (float)($in['rating'] ?? 5.0)
         ]);
-        json_response(['success'=>true,'message'=>'Tạo sản phẩm thành công.','data'=>['id'=>(int)$pdo->lastInsertId()]],201);
+
+        json_response([
+            'success' => true,
+            'message' => 'Tạo sản phẩm thành công.',
+            'data'    => ['id' => (int)$pdo->lastInsertId(), 'slug' => $slug]
+        ], 201);
     }
 
     if ($method === 'PUT') {
         $id = (int)($_GET['id'] ?? 0);
-        if ($id <= 0) json_response(['success'=>false,'message'=>'Thiếu id sản phẩm.'],400);
-        $chk = $pdo->prepare('SELECT id FROM products WHERE id=:id'); $chk->execute([':id'=>$id]);
-        if (!$chk->fetch()) json_response(['success'=>false,'message'=>'Sản phẩm không tồn tại.'],404);
-        $in = get_json_input(); if (empty($in)) json_response(['success'=>false,'message'=>'Không có dữ liệu cập nhật.'],400);
-        $allowed=['name','category_id','sku','slug','price','cost_price','sale_price','stock_quantity','primary_flower','color','color_name','size_dimensions','meaning','tags','thumbnail','is_featured','is_active','rating'];
-        $sets=[]; $params=[':id'=>$id];
-        foreach($allowed as $f){ if(array_key_exists($f,$in)){ $sets[]="`$f`=:$f"; $params[":$f"]=$in[$f]; } }
-        if(!$sets) json_response(['success'=>false,'message'=>'Không có trường hợp lệ để cập nhật.'],400);
-        if(isset($in['sku'])){
-            $s=$pdo->prepare('SELECT COUNT(*) FROM products WHERE sku=:sku AND id!=:id'); $s->execute([':sku'=>trim((string)$in['sku']),':id'=>$id]);
-            if((int)$s->fetchColumn()>0) json_response(['success'=>false,'message'=>'Mã SKU đã tồn tại cho sản phẩm khác.'],409);
+        if ($id <= 0) json_response(['success' => false, 'message' => 'Thiếu id sản phẩm.'], 400);
+
+        $chk = $pdo->prepare('SELECT id FROM products WHERE id = :id');
+        $chk->execute([':id' => $id]);
+        if (!$chk->fetch()) json_response(['success' => false, 'message' => 'Sản phẩm không tồn tại.'], 404);
+
+        $in = get_json_input();
+        if (empty($in)) json_response(['success' => false, 'message' => 'Không có dữ liệu cập nhật.'], 400);
+
+        $allowed = [
+            'name', 'category_id', 'sku', 'slug', 'price', 'cost_price', 'sale_price', 'stock_quantity',
+            'short_description', 'primary_flower', 'secondary_flower', 'stem_count', 'product_form',
+            'color', 'color_name', 'size_dimensions', 'wrapping_paper', 'care_guide', 'gallery',
+            'meaning', 'tags', 'thumbnail', 'is_featured', 'is_active', 'rating'
+        ];
+
+        $sets = [];
+        $params = [':id' => $id];
+
+        foreach ($allowed as $f) {
+            if (array_key_exists($f, $in)) {
+                $val = $in[$f];
+                if ($f === 'gallery' && is_array($val)) {
+                    $val = json_encode($val, JSON_UNESCAPED_UNICODE);
+                }
+                $sets[] = "`$f` = :$f";
+                $params[":$f"] = $val;
+            }
         }
-        $pdo->prepare('UPDATE products SET '.implode(',',$sets).' WHERE id=:id')->execute($params);
-        json_response(['success'=>true,'message'=>'Cập nhật sản phẩm thành công.']);
+
+        if (!$sets) json_response(['success' => false, 'message' => 'Không có trường hợp lệ để cập nhật.'], 400);
+
+        if (isset($in['sku'])) {
+            $s = $pdo->prepare('SELECT COUNT(*) FROM products WHERE sku = :sku AND id != :id');
+            $s->execute([':sku' => trim((string)$in['sku']), ':id' => $id]);
+            if ((int)$s->fetchColumn() > 0) {
+                json_response(['success' => false, 'message' => 'Mã SKU đã tồn tại cho sản phẩm khác.'], 409);
+            }
+        }
+
+        $pdo->prepare('UPDATE products SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($params);
+        json_response(['success' => true, 'message' => 'Cập nhật sản phẩm thành công.']);
     }
 
     if ($method === 'DELETE') {
         $id = (int)($_GET['id'] ?? 0);
-        if ($id <= 0) json_response(['success'=>false,'message'=>'Thiếu id sản phẩm.'],400);
-        $st=$pdo->prepare('UPDATE products SET is_active=0 WHERE id=:id'); $st->execute([':id'=>$id]);
-        json_response(['success'=>true,'message'=>'Đã vô hiệu hóa sản phẩm.']);
+        if ($id <= 0) json_response(['success' => false, 'message' => 'Thiếu id sản phẩm.'], 400);
+
+        // Kiểm tra xem sản phẩm đã có đơn hàng chưa
+        $chkOrder = $pdo->prepare('SELECT COUNT(*) FROM order_items WHERE product_id = :id');
+        $chkOrder->execute([':id' => $id]);
+        $orderCount = (int)$chkOrder->fetchColumn();
+
+        $force = (string)($_GET['force'] ?? '0') === '1';
+
+        if ($orderCount > 0) {
+            // Đã có đơn hàng liên kết -> An toàn: chỉ chuyển sang lưu trữ (vô hiệu hóa)
+            $st = $pdo->prepare('UPDATE products SET is_active = 0 WHERE id = :id');
+            $st->execute([':id' => $id]);
+            json_response([
+                'success' => true,
+                'action'  => 'archived',
+                'message' => "Sản phẩm đã có $orderCount mục trong đơn hàng khách đã mua. Hệ thống đã lưu trữ an toàn (chuyển sang Tạm ẩn) để bảo toàn lịch sử hóa đơn."
+            ]);
+        }
+
+        if ($force) {
+            // Không có đơn hàng và yêu cầu xóa vĩnh viễn
+            $st = $pdo->prepare('DELETE FROM products WHERE id = :id');
+            $st->execute([':id' => $id]);
+            json_response(['success' => true, 'action' => 'deleted', 'message' => 'Đã xóa vĩnh viễn sản phẩm khỏi hệ thống.']);
+        }
+
+        // Mặc định: vô hiệu hóa (tạm ẩn)
+        $st = $pdo->prepare('UPDATE products SET is_active = 0 WHERE id = :id');
+        $st->execute([':id' => $id]);
+        json_response(['success' => true, 'action' => 'archived', 'message' => 'Đã lưu trữ mẫu hoa (tạm ẩn khỏi website).']);
     }
 
-    json_response(['success'=>false,'message'=>'Phương thức HTTP không được hỗ trợ.'],405);
+    json_response(['success' => false, 'message' => 'Phương thức HTTP không được hỗ trợ.'], 405);
 } catch (Throwable $e) {
-    error_log('[Admin Products] '.$e->getMessage());
-    json_response(['success'=>false,'message'=>'Lỗi hệ thống khi xử lý sản phẩm.'],500);
+    error_log('[Admin Products] ' . $e->getMessage());
+    json_response(['success' => false, 'message' => 'Lỗi hệ thống khi xử lý sản phẩm: ' . $e->getMessage()], 500);
 }

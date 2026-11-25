@@ -611,6 +611,22 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
                 <option value="active">Đang mở bán</option>
                 <option value="inactive">Tạm ngừng bán</option>
               </select>
+              <select id="productStockFilter" onchange="loadAdminProducts()" class="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-stone-700 font-medium focus:outline-none">
+                <option value="">Tất cả tồn kho</option>
+                <option value="in_stock">Còn hàng dồi dào (>5)</option>
+                <option value="low_stock">Sắp hết hàng (1-5)</option>
+                <option value="out_of_stock">Hết hàng (0)</option>
+              </select>
+              <select id="productSortFilter" onchange="loadAdminProducts()" class="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-stone-700 font-medium focus:outline-none">
+                <option value="id_desc">Mới nhất (ID giảm)</option>
+                <option value="id_asc">Cũ nhất (ID tăng)</option>
+                <option value="price_asc">Giá bán tăng dần</option>
+                <option value="price_desc">Giá bán giảm dần</option>
+                <option value="stock_asc">Tồn kho ít nhất</option>
+                <option value="stock_desc">Tồn kho nhiều nhất</option>
+                <option value="name_asc">Tên hoa A-Z</option>
+                <option value="rating_desc">Đánh giá cao nhất</option>
+              </select>
               <button onclick="openProductModal()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-sm transition flex items-center space-x-1.5">
                 <i class="ph ph-plus-circle text-base"></i>
                 <span>Thêm Hoa Mới</span>
@@ -1324,8 +1340,43 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
             </select>
           </div>
           <div>
+            <label class="block font-semibold text-stone-700 mb-1">Dáng Cắm Sản Phẩm</label>
+            <select id="prodProductForm" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none">
+              <option value="bo">Bó hoa tươi (Round/Long Bouquet)</option>
+              <option value="gio">Giỏ hoa nghệ thuật (Basket)</option>
+              <option value="hop">Hộp hoa / Hộp mica cao cấp (Box)</option>
+              <option value="ke">Kệ hoa khai trương / chia buồn (Stand)</option>
+              <option value="lang">Lẵng hoa / Bình hoa để bàn</option>
+              <option value="chau">Chậu hoa (Lan hồ điệp / Cây cảnh)</option>
+            </select>
+          </div>
+          <div>
             <label class="block font-semibold text-stone-700 mb-1">Loài Hoa Chủ Đạo</label>
-            <input type="text" id="prodPrimaryFlower" placeholder="Hoa hồng đỏ, Hoa baby..." class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+            <input type="text" id="prodPrimaryFlower" placeholder="Hoa hồng đỏ Ecuador, Hướng dương..." class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Hoa & Lá Phụ</label>
+            <input type="text" id="prodSecondaryFlower" placeholder="Baby trắng, lá bạc nhập khẩu, cúc tana..." class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Số Lượng Cành (Nếu đếm)</label>
+            <input type="number" id="prodStemCount" min="0" placeholder="19 (để trống nếu kệ/giỏ tổng hợp)" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Tone Màu & Mã Màu</label>
+            <div class="grid grid-cols-2 gap-2">
+              <select id="prodColor" class="bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none">
+                <option value="do">Đỏ</option>
+                <option value="hong">Hồng</option>
+                <option value="vang">Vàng</option>
+                <option value="cam">Cam</option>
+                <option value="trang">Trắng</option>
+                <option value="tim">Tím</option>
+                <option value="xanh">Xanh</option>
+                <option value="pastel">Pastel</option>
+              </select>
+              <input type="text" id="prodColorName" placeholder="Tên màu: Đỏ nhung, Hồng pastel..." class="bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+            </div>
           </div>
           <div>
             <label class="block font-semibold text-stone-700 mb-1">Giá Bán Niêm Yết (VND) *</label>
@@ -1336,12 +1387,20 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
             <input type="number" id="prodCostPrice" required min="0" step="1000" placeholder="320000" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
           </div>
           <div>
-            <label class="block font-semibold text-stone-700 mb-1">Giá Khuyến Mãi (Nếu có)</label>
+            <label class="block font-semibold text-stone-700 mb-1">Giá Gốc Trước Giảm (Sale Price nếu có)</label>
             <input type="number" id="prodSalePrice" min="0" step="1000" placeholder="590000" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
           </div>
           <div>
             <label class="block font-semibold text-stone-700 mb-1">Số Lượng Tồn Sẵn Bán *</label>
             <input type="number" id="prodStockQty" required min="0" value="50" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Kích Thước Thiết Kế</label>
+            <input type="text" id="prodSize" placeholder="Cao 55cm x Rộng 40cm" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Quy Cách Đóng Gói / Giấy Gói</label>
+            <input type="text" id="prodWrappingPaper" placeholder="Giấy xi măng vintage, nơ ruy băng lụa cao cấp..." class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
           </div>
         </div>
 
@@ -1351,8 +1410,19 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
         </div>
 
         <div>
-          <label class="block font-semibold text-stone-700 mb-1">Ý Nghĩa & Thông Điệp Bó Hoa</label>
-          <textarea id="prodMeaning" rows="2" placeholder="Bày tỏ tình yêu nồng nàn và lòng chân thành..." class="w-full bg-stone-50 border border-stone-300 rounded-xl p-2.5 text-stone-800 focus:outline-none"></textarea>
+          <label class="block font-semibold text-stone-700 mb-1">Mô Tả Ngắn Tinh Tế (Short Description)</label>
+          <input type="text" id="prodShortDesc" placeholder="Mẫu hoa tinh tế dành tặng người thương dịp sinh nhật..." class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Ý Nghĩa & Thông Điệp Bó Hoa</label>
+            <textarea id="prodMeaning" rows="2" placeholder="Bày tỏ tình yêu nồng nàn và lòng chân thành..." class="w-full bg-stone-50 border border-stone-300 rounded-xl p-2.5 text-stone-800 focus:outline-none"></textarea>
+          </div>
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Hướng Dẫn Chăm Sóc Hoa Tươi</label>
+            <textarea id="prodCareGuide" rows="2" placeholder="Cắt gốc vát 45 độ, thay nước sạch mỗi ngày, tránh gió máy lạnh trực tiếp..." class="w-full bg-stone-50 border border-stone-300 rounded-xl p-2.5 text-stone-800 focus:outline-none"></textarea>
+          </div>
         </div>
 
         <div class="flex items-center space-x-6 pt-2">
