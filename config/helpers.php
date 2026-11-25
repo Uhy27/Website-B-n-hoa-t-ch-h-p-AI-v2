@@ -38,7 +38,7 @@ function init_secure_session(): void {
     }
 }
 
-function require_admin_auth(array $roles = ['admin', 'staff']): void {
+function require_admin_auth(array $roles = ['admin', 'staff', 'manager', 'florist', 'shipper', 'warehouse']): void {
     init_secure_session();
     $role = $_SESSION['role_name'] ?? '';
     if (empty($_SESSION['user_id']) || !in_array($role, $roles, true)) {
@@ -46,6 +46,24 @@ function require_admin_auth(array $roles = ['admin', 'staff']): void {
             'success' => false,
             'message' => 'Yêu cầu quyền truy cập quản trị. Vui lòng đăng nhập.'
         ], 401);
+    }
+}
+
+function log_activity(?int $userId, string $action, string $module, ?int $entityId = null, ?string $details = null): void {
+    try {
+        $pdo = getDBConnection();
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $stmt = $pdo->prepare("INSERT INTO activity_logs (user_id, action, module, entity_id, details, ip_address, created_at) VALUES (:uid, :act, :mod, :eid, :dt, :ip, NOW())");
+        $stmt->execute([
+            ':uid' => $userId,
+            ':act' => $action,
+            ':mod' => $module,
+            ':eid' => $entityId,
+            ':dt' => $details,
+            ':ip' => $ip
+        ]);
+    } catch (Throwable $e) {
+        error_log('[Activity Log Error] ' . $e->getMessage());
     }
 }
 

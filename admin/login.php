@@ -8,8 +8,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Nếu đã đăng nhập với quyền admin/staff, chuyển thẳng vào Dashboard
-if (isset($_SESSION['user_id']) && in_array($_SESSION['role_name'] ?? '', ['admin', 'staff'])) {
+// Nếu đã đăng nhập với quyền nội bộ quản trị/nhân viên, chuyển thẳng vào Dashboard
+$adminRoles = ['admin', 'staff', 'manager', 'florist', 'shipper', 'warehouse'];
+if (isset($_SESSION['user_id']) && in_array($_SESSION['role_name'] ?? '', $adminRoles, true)) {
     header('Location: index.php');
     exit;
 }

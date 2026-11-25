@@ -1579,10 +1579,31 @@ function closeCheckoutModal() {
 async function handleCheckoutSubmit(event) {
   event.preventDefault();
 
+  // Chống submit nhiều lần liên tục (Double-submit Lock)
+  if (AppState.isSubmittingOrder) {
+    return;
+  }
+
+  // Validate giỏ hàng phía frontend trước khi gọi API
+  if (!AppState.cart || AppState.cart.length === 0) {
+    showToast('Giỏ hàng trống! Hãy chọn mẫu hoa bạn ưng ý trước khi đặt nhé.', 'warning');
+    return;
+  }
+
   const form = event.target;
+  const receiverName = form.receiverName.value.trim();
+  const receiverPhone = form.receiverPhone.value.trim();
+  const address = form.address.value.trim();
+
+  if (!receiverName || !receiverPhone || !address) {
+    showToast('Vui lòng điền đầy đủ tên, số điện thoại và địa chỉ nhận hoa.', 'warning');
+    return;
+  }
+
   const submitBtn = form.querySelector('button[type="submit"]');
   const originalBtnText = submitBtn ? submitBtn.innerHTML : '';
 
+  AppState.isSubmittingOrder = true;
   if (submitBtn) {
     submitBtn.disabled = true;
     submitBtn.innerHTML = `<i class="ph ph-spinner animate-spin text-base"></i><span>Đang xử lý đơn hoa...</span>`;
@@ -1592,9 +1613,9 @@ async function handleCheckoutSubmit(event) {
     senderName: form.senderName.value.trim() || 'Khách hàng',
     senderPhone: form.senderPhone.value.trim(),
     isAnonymous: form.isAnonymous.checked ? 1 : 0,
-    receiverName: form.receiverName.value.trim(),
-    receiverPhone: form.receiverPhone.value.trim(),
-    address: form.address.value.trim(),
+    receiverName: receiverName,
+    receiverPhone: receiverPhone,
+    address: address,
     city: 'TP. Hồ Chí Minh',
     deliveryDate: form.deliveryDate.value,
     deliveryTime: form.deliveryTime.value,
@@ -1624,32 +1645,14 @@ async function handleCheckoutSubmit(event) {
       updateCartUI();
       closeCheckoutModal();
       showOrderSuccessModal(json.data);
-      return;
     } else {
-      showToast(json.message || 'Lỗi đặt hàng', 'warning');
+      showToast(json.message || 'Không thể tạo đơn hàng. Vui lòng kiểm tra lại thông tin.', 'warning');
     }
   } catch (e) {
-    console.warn('Lỗi gọi API Checkout, sử dụng fallback:', e);
-    // Fallback tạo order local nếu mất kết nối
-    const localOrder = {
-      orderCode: 'BL' + Math.floor(10000 + Math.random() * 90000),
-      totalAmount: 1350000,
-      paymentMethod: payload.paymentMethod,
-      receiverName: payload.receiverName,
-      receiverPhone: payload.receiverPhone,
-      address: payload.address,
-      deliveryDate: payload.deliveryDate,
-      deliveryTime: payload.deliveryTime,
-      bannerMessage: payload.bannerMessage,
-      vietqrUrl: `https://img.vietqr.io/image/MB-0908123456-compact.png?amount=1350000&addInfo=BLOOMORA&accountName=BLOOMORA%20FLORIST`
-    };
-    AppState.lastCreatedOrder = localOrder;
-    AppState.cart = [];
-    saveCartToStorage();
-    updateCartUI();
-    closeCheckoutModal();
-    showOrderSuccessModal(localOrder);
+    console.error('Lỗi gọi API Checkout:', e);
+    showToast('Lỗi kết nối máy chủ khi tạo đơn hàng. Vui lòng thử lại sau giây lát.', 'error');
   } finally {
+    AppState.isSubmittingOrder = false;
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalBtnText;
@@ -1657,7 +1660,7 @@ async function handleCheckoutSubmit(event) {
   }
 }
 
-// Modal đặt hàng thành công & Sinh VietQR
+// Modal đặt hàng thành công & Sinh VietQR / MoMo
 function showOrderSuccessModal(order) {
   const modal = document.getElementById('orderSuccessModal');
   const container = document.getElementById('orderSuccessContent');
@@ -1665,7 +1668,60 @@ function showOrderSuccessModal(order) {
 
   const orderCode = order.orderCode || order.id;
   const isVietQR = order.paymentMethod === 'vietqr';
+  const isMoMo = order.paymentMethod === 'momo';
   const qrUrl = order.vietqrUrl || `https://img.vietqr.io/image/MB-0908123456-compact.png?amount=${order.totalAmount}&addInfo=${orderCode}&accountName=BLOOMORA%20FLORIST`;
+
+  let paymentBoxHtml = '';
+  if (isVietQR) {
+    paymentBoxHtml = `
+      <div class="vietqr-box text-left mb-6">
+        <div class="flex items-center justify-between pb-3 border-b border-sky-400/40 mb-3">
+          <span class="font-bold text-sm tracking-wider">QUÉT MÃ VIETQR TỰ ĐỘNG</span>
+          <span class="text-xs bg-white text-sky-700 px-2.5 py-0.5 rounded-full font-bold">24/7 tức thì</span>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center gap-4 bg-white p-4 rounded-xl text-gray-800">
+          <img src="${qrUrl}" alt="Mã VietQR" class="w-44 h-44 object-contain rounded-lg border border-gray-200 shadow-sm" />
+          <div class="space-y-1.5 text-xs flex-1">
+            <p>Ngân hàng: <strong class="text-sky-700">MBBank (Quân Đội)</strong></p>
+            <p>Số tài khoản: <strong class="font-mono text-sm text-gray-900 font-bold">0908 123 456</strong></p>
+            <p>Chủ TK: <strong class="uppercase text-gray-900">TIEM HOA BLOOMORA</strong></p>
+            <p>Số tiền: <strong class="text-rose-600 font-bold text-sm">${formatCurrency(order.totalAmount)}</strong></p>
+            <p>Nội dung CK: <strong class="text-amber-600 font-mono bg-amber-50 px-2 py-0.5 rounded border border-amber-200">${orderCode}</strong></p>
+            <p class="text-[11px] text-gray-500 pt-1 italic">* Mở app ngân hàng quét mã QR để chuyển khoản nhanh trong 30 giây.</p>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (isMoMo) {
+    paymentBoxHtml = `
+      <div class="vietqr-box text-left mb-6 border-pink-400 bg-pink-50/50">
+        <div class="flex items-center justify-between pb-3 border-b border-pink-300 mb-3">
+          <span class="font-bold text-sm tracking-wider text-pink-700">THANH TOÁN QUA VÍ MOMO</span>
+          <span class="text-xs bg-pink-600 text-white px-2.5 py-0.5 rounded-full font-bold">Quét mã tiện lợi</span>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center gap-4 bg-white p-4 rounded-xl text-gray-800 border border-pink-100">
+          <img src="${qrUrl}" alt="Mã MoMo" class="w-44 h-44 object-contain rounded-lg border border-pink-200 shadow-sm" />
+          <div class="space-y-1.5 text-xs flex-1">
+            <p>Ví điện tử: <strong class="text-pink-600 font-bold">Ví MoMo</strong></p>
+            <p>Số điện thoại: <strong class="font-mono text-sm text-gray-900 font-bold">0908 123 456</strong></p>
+            <p>Chủ tài khoản: <strong class="uppercase text-gray-900">TIEM HOA BLOOMORA</strong></p>
+            <p>Số tiền: <strong class="text-rose-600 font-bold text-sm">${formatCurrency(order.totalAmount)}</strong></p>
+            <p>Lời nhắn chuyển: <strong class="text-amber-600 font-mono bg-amber-50 px-2 py-0.5 rounded border border-amber-200">${orderCode}</strong></p>
+            <p class="text-[11px] text-gray-500 pt-1 italic">* Mở app MoMo quét mã QR hoặc chuyển đến SĐT trên kèm mã đơn hoa.</p>
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    paymentBoxHtml = `
+      <div class="bg-gray-100 rounded-xl p-4 text-left text-xs text-gray-700 mb-6">
+        <i class="ph ph-money text-base text-gray-500 mr-1"></i>
+        Bạn đã chọn thanh toán <strong>Tiền mặt khi nhận hoa (COD)</strong> với số tiền <strong>${formatCurrency(order.totalAmount)}</strong>. Shipper sẽ liên hệ trước khi giao.
+      </div>
+    `;
+  }
 
   container.innerHTML = `
     <div class="text-center p-6 lg:p-8">
@@ -1680,35 +1736,11 @@ function showOrderSuccessModal(order) {
         <i class="ph ph-shield-check text-amber-600 text-xl flex-shrink-0 mt-0.5"></i>
         <div>
           <span class="font-bold block mb-0.5">Cam kết của Bloomora Florist:</span>
-          Florist sẽ hoàn tất cắm hoa và gửi ảnh chụp thực tế qua Zalo/SĐT <strong>${order.senderPhone || order.receiverPhone}</strong> để bạn duyệt trước khi shipper xuất phát!
+          Florist sẽ hoàn tất cắm hoa và gửi ảnh chụp thực tế qua Zalo/SĐT <strong>${escapeHtml(order.senderPhone || order.receiverPhone)}</strong> để bạn duyệt trước khi shipper xuất phát!
         </div>
       </div>
 
-      ${isVietQR ? `
-        <div class="vietqr-box text-left mb-6">
-          <div class="flex items-center justify-between pb-3 border-b border-sky-400/40 mb-3">
-            <span class="font-bold text-sm tracking-wider">QUÉT MÃ VIETQR TỰ ĐỘNG</span>
-            <span class="text-xs bg-white text-sky-700 px-2.5 py-0.5 rounded-full font-bold">24/7 tức thì</span>
-          </div>
-
-          <div class="flex flex-col sm:flex-row items-center gap-4 bg-white p-4 rounded-xl text-gray-800">
-            <img src="${qrUrl}" alt="Mã VietQR" class="w-44 h-44 object-contain rounded-lg border border-gray-200 shadow-sm" />
-            <div class="space-y-1.5 text-xs flex-1">
-              <p>Ngân hàng: <strong class="text-sky-700">MBBank (Quân Đội)</strong></p>
-              <p>Số tài khoản: <strong class="font-mono text-sm text-gray-900 font-bold">0908 123 456</strong></p>
-              <p>Chủ TK: <strong class="uppercase text-gray-900">TIEM HOA BLOOMORA</strong></p>
-              <p>Số tiền: <strong class="text-rose-600 font-bold text-sm">${formatCurrency(order.totalAmount)}</strong></p>
-              <p>Nội dung CK: <strong class="text-amber-600 font-mono bg-amber-50 px-2 py-0.5 rounded border border-amber-200">${orderCode}</strong></p>
-              <p class="text-[11px] text-gray-500 pt-1 italic">* Mở app ngân hàng quét mã QR để chuyển khoản nhanh trong 30 giây.</p>
-            </div>
-          </div>
-        </div>
-      ` : `
-        <div class="bg-gray-100 rounded-xl p-4 text-left text-xs text-gray-700 mb-6">
-          <i class="ph ph-money text-base text-gray-500 mr-1"></i>
-          Bạn đã chọn thanh toán <strong>Tiền mặt khi nhận hoa (COD)</strong> với số tiền <strong>${formatCurrency(order.totalAmount)}</strong>. Shipper sẽ liên hệ trước khi giao.
-        </div>
-      `}
+      ${paymentBoxHtml}
 
       <div class="bg-gray-50 rounded-xl p-4 text-left text-xs space-y-1 text-gray-600 mb-6">
         <p><strong class="text-gray-800">Người nhận:</strong> ${escapeHtml(order.receiverName)} - ${escapeHtml(order.receiverPhone)}</p>

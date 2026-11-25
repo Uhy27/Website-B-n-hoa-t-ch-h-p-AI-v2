@@ -14,7 +14,8 @@ try {
     $st->execute([':email'=>$email]); $user=$st->fetch();
     if(!$user || !password_verify($password,(string)$user['password_hash'])) json_response(['success'=>false,'message'=>'Email hoặc mật khẩu không chính xác.'],401);
     if(($user['status']??'')!=='active') json_response(['success'=>false,'message'=>'Tài khoản đang bị khóa hoặc chưa kích hoạt.'],403);
-    if($requireAdmin && !in_array($user['role_name'],['admin','staff'],true)) json_response(['success'=>false,'message'=>'Tài khoản không có quyền truy cập quản trị.'],403);
+    $staffRoles = ['admin', 'staff', 'manager', 'florist', 'shipper', 'warehouse'];
+    if($requireAdmin && !in_array($user['role_name'], $staffRoles, true)) json_response(['success'=>false,'message'=>'Tài khoản không có quyền truy cập quản trị.'],403);
     session_regenerate_id(true);
     $_SESSION['user_id']=(int)$user['id']; $_SESSION['role_name']=$user['role_name'];
     $_SESSION['full_name']=$user['full_name']; $_SESSION['email']=$user['email']; $_SESSION['phone']=$user['phone']??'';

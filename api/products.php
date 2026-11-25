@@ -30,7 +30,7 @@ try {
     elseif ($sort === 'price-desc') $orderBy = 'p.price DESC';
     elseif ($sort === 'rating') $orderBy = 'p.rating DESC, p.reviews_count DESC';
 
-    $sql = "SELECT p.id,p.category_id,p.sku,p.name,p.slug,p.price,p.sale_price,p.cost_price,
+    $sql = "SELECT p.id,p.category_id,p.sku,p.name,p.slug,p.price,p.sale_price,
                    p.stock_quantity,p.primary_flower,p.color,p.color_name,p.size_dimensions,
                    p.meaning,p.tags,p.thumbnail AS image,p.rating,p.reviews_count AS reviewsCount,
                    c.name AS categoryName,c.slug AS categorySlug
@@ -41,7 +41,6 @@ try {
     foreach ($products as &$p) {
         $p['id']=(int)$p['id']; $p['category_id']=(int)$p['category_id'];
         $p['price']=(float)$p['price']; $p['originalPrice']=$p['sale_price']? (float)$p['sale_price']:(float)$p['price'];
-        $p['cost_price'] = isset($p['cost_price']) ? (float)$p['cost_price'] : 0.0;
         $p['stock_quantity']=(int)$p['stock_quantity']; $p['rating']=(float)$p['rating']; $p['reviewsCount']=(int)$p['reviewsCount'];
         $p['tags']=!empty($p['tags']) ? array_values(array_filter(array_map('trim', explode(',', (string)$p['tags'])))) : [];
         $p['flowerTypes']=$p['primary_flower']; $p['size']=$p['size_dimensions'];
