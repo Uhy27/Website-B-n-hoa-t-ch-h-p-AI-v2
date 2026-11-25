@@ -94,6 +94,12 @@ $flash      = get_flash();
           <nav class="hidden lg:flex items-center space-x-4 text-xs font-semibold text-stone-600">
             <a href="index.php" class="text-rose-600">Trang Chủ</a>
             <a href="../html/index.html" class="hover:text-rose-600 transition">Bản HTML</a>
+            <?php if ($isLoggedIn && $userRole === 'admin'): ?>
+              <a href="admin.php" class="text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-xl font-bold text-[11px] hover:bg-rose-100 flex items-center space-x-1 transition shadow-sm">
+                <i class="ph ph-shield-check text-base"></i>
+                <span>Vào Admin</span>
+              </a>
+            <?php endif; ?>
           </nav>
 
           <?php if ($isLoggedIn): ?>

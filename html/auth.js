@@ -344,6 +344,13 @@
         const avatarLetter = document.getElementById('avatarLetter');
         if (userNameSpan) userNameSpan.textContent = user.name;
         if (avatarLetter) avatarLetter.textContent = user.name.charAt(0).toUpperCase();
+
+        // Hiển thị nút truy cập trang Admin khi đăng nhập bằng quyền Admin
+        const adminBtn = document.getElementById('navbarAdminBtn');
+        if (adminBtn && user.role === 'admin') {
+          adminBtn.classList.remove('hidden');
+          adminBtn.classList.add('inline-flex');
+        }
       }
     }
   });

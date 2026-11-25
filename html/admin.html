@@ -64,7 +64,7 @@
         </a>
       </div>
 
-      <!-- 3 Tab Phân Hệ Quản Trị -->
+      <!-- 3 Tab Phân Hệ Quản Trị (Desktop) -->
       <nav class="hidden md:flex items-center space-x-1 bg-stone-800 p-1 rounded-2xl text-xs font-semibold border border-stone-700/80">
         <a href="admin.html" class="px-3.5 py-1.5 rounded-xl bg-rose-600 text-white font-bold shadow-sm transition">
           <i class="ph ph-receipt mr-1"></i>
@@ -79,6 +79,11 @@
           <span>Kho & Vật Tư</span>
         </a>
       </nav>
+
+      <!-- Mobile Hamburger -->
+      <button onclick="document.getElementById('adminMobileNav').classList.toggle('hidden')" class="md:hidden text-stone-300 hover:text-white p-2 rounded-lg border border-stone-700">
+        <i class="ph ph-list text-xl"></i>
+      </button>
 
       <!-- Điều hướng & Tài khoản -->
       <div class="flex items-center space-x-4">
@@ -105,6 +110,19 @@
         </button>
       </div>
 
+    </div>
+
+    <!-- Mobile Menu Dropdown -->
+    <div id="adminMobileNav" class="hidden md:hidden border-t border-stone-800 bg-stone-900 px-4 py-3 space-y-1">
+      <a href="admin.html" class="block px-3 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs">
+        <i class="ph ph-receipt mr-1"></i> Đơn Hàng
+      </a>
+      <a href="admin-products.html" class="block px-3 py-2 rounded-xl text-stone-300 hover:text-white hover:bg-stone-800 text-xs">
+        <i class="ph ph-flower mr-1"></i> Sản Phẩm Hoa
+      </a>
+      <a href="admin-inventory.html" class="block px-3 py-2 rounded-xl text-stone-300 hover:text-white hover:bg-stone-800 text-xs">
+        <i class="ph ph-package mr-1"></i> Kho & Vật Tư
+      </a>
     </div>
   </header>
 

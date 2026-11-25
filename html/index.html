@@ -27,6 +27,10 @@
     .font-serif-title {
       font-family: 'Playfair Display', Georgia, serif;
     }
+
+    /* Ẩn scrollbar ngang cho thanh filter tabs */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 
   <script>
@@ -63,7 +67,7 @@
       <div class="flex items-center space-x-4 text-[11px] text-stone-400">
         <span><i class="ph ph-clock mr-1 text-rose-500"></i> Giao 60-90 phút</span>
         <span>|</span>
-        <a href="tel:1900633045" class="hover:text-white transition"><i
+        <a href="tel:0946618960" class="hover:text-white transition"><i
             class="ph ph-phone-call mr-1 text-emerald-400"></i> Hotline: <strong class="text-white">0946618960
           </strong></a>
       </div>
@@ -98,10 +102,15 @@
         </div>
 
         <!-- Menu & Giỏ hàng -->
-        <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-3 sm:space-x-4">
           <nav class="hidden lg:flex items-center space-x-5 text-xs font-semibold text-stone-600">
-            <a href="index.html" class="text-rose-600">Trang Chủ</a>
-            <a href="#" class="hover:text-rose-600 transition">Mẫu Hoa Mới</a>
+            <a href="index.html" class="text-rose-600 font-bold">Trang Chủ</a>
+            <a href="#productsSection" class="hover:text-rose-600 transition">Mẫu Hoa Tươi</a>
+            <!-- Nút liên kết Admin xuất hiện khi đăng nhập tài khoản Quản trị -->
+            <a id="navbarAdminBtn" href="admin.html" class="hidden text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-xl font-bold text-[11px] hover:bg-rose-100 items-center space-x-1 transition shadow-sm">
+              <i class="ph ph-shield-check text-base"></i>
+              <span>Vào Admin</span>
+            </a>
           </nav>
 
           <!-- Khu vực Tài Khoản Auth -->
@@ -122,10 +131,11 @@
 
           <!-- Nút Giỏ Hàng -->
           <button
-            class="relative flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition">
+            onclick="openCartDrawer()"
+            class="relative flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition cursor-pointer">
             <i class="ph ph-shopping-bag text-base"></i>
             <span class="hidden sm:inline">Giỏ Hàng</span>
-            <span class="bg-white text-rose-600 text-[10px] font-black px-1.5 py-0.2 rounded-full">0</span>
+            <span id="cartCountBadge" class="bg-white text-rose-600 text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">0</span>
           </button>
         </div>
 
@@ -223,7 +233,317 @@
 
       </div>
     </section>
+
+    <!-- ================= CHỨC NĂNG 3: CAM KẾT DỊCH VỤ CHUẨN WISH FLORIST ================= -->
+    <section class="border-y border-stone-200/90 bg-white py-8 shadow-sm">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+          
+          <!-- Cam kết 1: Chụp ảnh hoa thật -->
+          <div class="flex items-start space-x-4 p-4 rounded-2xl bg-stone-50 border border-stone-200/60 hover:border-rose-300 transition">
+            <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0 text-2xl shadow-sm">
+              <i class="ph ph-camera"></i>
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <h3 class="font-bold text-sm text-stone-900">100% Chụp Ảnh Thật Trước Khi Giao</h3>
+                <span class="bg-rose-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase">Độc Quyền</span>
+              </div>
+              <p class="text-xs text-stone-500 mt-1 leading-relaxed">
+                Florist cắm xong hoa sẽ chụp ảnh cận cảnh gửi Zalo/SMS để quý khách kiểm duyệt đúng mẫu và ưng ý trước khi giao.
+              </p>
+            </div>
+          </div>
+
+          <!-- Cam kết 2: Giao hỏa tốc đúng khung giờ -->
+          <div class="flex items-start space-x-4 p-4 rounded-2xl bg-stone-50 border border-stone-200/60 hover:border-rose-300 transition">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0 text-2xl shadow-sm">
+              <i class="ph ph-clock-countdown"></i>
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <h3 class="font-bold text-sm text-stone-900">Giao Hỏa Tốc & Chọn Đúng Khung Giờ</h3>
+                <span class="bg-emerald-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase">60-90 Phút</span>
+              </div>
+              <p class="text-xs text-stone-500 mt-1 leading-relaxed">
+                Giao đúng giờ hẹn (Sáng, Trưa, Chiều, Tối). Đội ngũ tài xế riêng bọc hoa chống sốc, cam kết hoa tươi nguyên vẹn đến tay.
+              </p>
+            </div>
+          </div>
+
+          <!-- Cam kết 3: Miễn phí in băng rôn vi tính -->
+          <div class="flex items-start space-x-4 p-4 rounded-2xl bg-stone-50 border border-stone-200/60 hover:border-rose-300 transition">
+            <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0 text-2xl shadow-sm">
+              <i class="ph ph-ribbon"></i>
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <h3 class="font-bold text-sm text-stone-900">Miễn Phí In Băng Rôn Vi Tính</h3>
+                <span class="bg-amber-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase">0 Đồng</span>
+              </div>
+              <p class="text-xs text-stone-500 mt-1 leading-relaxed">
+                Tặng dải ruy băng chữ vi tính sang trọng hoặc thiệp chúc mừng cao cấp. Quý khách tùy chỉnh nội dung thông điệp khi đặt hoa.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CHỨC NĂNG 4: DANH MỤC SẢN PHẨM HOA WISH FLORIST ================= -->
+    <section id="productsSection" class="py-12 lg:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <!-- Tiêu đề Section & Giới thiệu -->
+      <div class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+        <div>
+          <div class="inline-flex items-center space-x-1.5 text-xs font-bold text-rose-600 uppercase tracking-widest bg-rose-50 px-3 py-1 rounded-full mb-2 border border-rose-100">
+            <i class="ph ph-sparkle"></i>
+            <span>Bộ Sưu Tập Wish Florist Taiwan</span>
+          </div>
+          <h2 class="font-serif-title text-2xl sm:text-4xl font-bold text-stone-900">Mẫu Hoa Tươi Tuyển Chọn Trong Ngày</h2>
+          <p class="text-xs sm:text-sm text-stone-500 mt-1 max-w-2xl">
+            Tất cả mẫu hoa đều được cắm từ hoa tươi loại 1 trong sáng nay. Chọn mẫu để tùy chọn khung giờ giao và nội dung in băng rôn vi tính.
+          </p>
+        </div>
+
+        <!-- Thống kê mẫu hoa -->
+        <div class="flex items-center space-x-3 text-xs text-stone-500">
+          <span class="flex items-center space-x-1"><i class="ph-fill ph-check-circle text-emerald-500"></i><span>Hoa nhập trong ngày</span></span>
+          <span>•</span>
+          <span class="flex items-center space-x-1"><i class="ph-fill ph-shield-check text-rose-500"></i><span>Bảo hành tươi 3+ ngày</span></span>
+        </div>
+      </div>
+
+      <!-- Thanh Lọc Phân Loại Tabs (Wish Florist Category Navigation) -->
+      <div class="flex items-center space-x-2 overflow-x-auto pb-3 mb-8 no-scrollbar">
+        <button onclick="filterCatalog('all', this)" data-category="all" class="catalog-filter-btn flex-shrink-0 px-4 py-2.5 rounded-2xl text-xs font-bold bg-rose-600 text-white shadow-md shadow-rose-600/20 transition flex items-center space-x-1.5">
+          <i class="ph ph-squares-four text-sm"></i>
+          <span>Tất Cả Mẫu Hoa</span>
+        </button>
+        <button onclick="filterCatalog('Hoa Khai Trương', this)" data-category="Hoa Khai Trương" class="catalog-filter-btn flex-shrink-0 px-4 py-2.5 rounded-2xl text-xs font-semibold bg-stone-100 text-stone-600 hover:bg-stone-200 transition flex items-center space-x-1.5">
+          <i class="ph ph-storefront text-sm"></i>
+          <span>Khai Trương & Sự Kiện</span>
+        </button>
+        <button onclick="filterCatalog('Hoa Tình Yêu & Hoa Hồng', this)" data-category="Hoa Tình Yêu & Hoa Hồng" class="catalog-filter-btn flex-shrink-0 px-4 py-2.5 rounded-2xl text-xs font-semibold bg-stone-100 text-stone-600 hover:bg-stone-200 transition flex items-center space-x-1.5">
+          <i class="ph ph-heart text-sm"></i>
+          <span>Bó Hoa Tình Yêu</span>
+        </button>
+        <button onclick="filterCatalog('Lan Hồ Điệp', this)" data-category="Lan Hồ Điệp" class="catalog-filter-btn flex-shrink-0 px-4 py-2.5 rounded-2xl text-xs font-semibold bg-stone-100 text-stone-600 hover:bg-stone-200 transition flex items-center space-x-1.5">
+          <i class="ph ph-flower-lotus text-sm"></i>
+          <span>Lan Hồ Điệp Quý Phái</span>
+        </button>
+        <button onclick="filterCatalog('Hoa Sinh Nhật', this)" data-category="Hoa Sinh Nhật" class="catalog-filter-btn flex-shrink-0 px-4 py-2.5 rounded-2xl text-xs font-semibold bg-stone-100 text-stone-600 hover:bg-stone-200 transition flex items-center space-x-1.5">
+          <i class="ph ph-cake text-sm"></i>
+          <span>Giỏ Hoa Sinh Nhật</span>
+        </button>
+        <button onclick="filterCatalog('Hoa Vĩnh Cửu', this)" data-category="Hoa Vĩnh Cửu" class="catalog-filter-btn flex-shrink-0 px-4 py-2.5 rounded-2xl text-xs font-semibold bg-stone-100 text-stone-600 hover:bg-stone-200 transition flex items-center space-x-1.5">
+          <i class="ph ph-hourglass-high text-sm"></i>
+          <span>Hoa Vĩnh Cửu 3 Năm</span>
+        </button>
+      </div>
+
+      <!-- Lưới Sản Phẩm Hoa Tươi (#catalogGrid) -->
+      <div id="catalogGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Javascript renderCatalog() chèn nội dung vào đây -->
+      </div>
+
+    </section>
   </main>
+
+  <!-- ================= MODAL ĐẶT HOA NHANH CHUẨN WISH FLORIST ================= -->
+  <div id="quickOrderModal" onclick="if(event.target===this)closeQuickOrderModal()" class="hidden fixed inset-0 z-50 overflow-y-auto bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-stone-200 relative max-h-[92vh] flex flex-col md:flex-row gap-6 overflow-y-auto">
+      
+      <!-- Nút Đóng Modal -->
+      <button onclick="closeQuickOrderModal()" class="absolute top-4 right-4 w-9 h-9 rounded-full bg-stone-100 hover:bg-rose-50 hover:text-rose-600 text-stone-500 flex items-center justify-center transition z-10">
+        <i class="ph ph-x text-lg"></i>
+      </button>
+
+      <!-- Cột Trái: Ảnh Sản Phẩm & Cam Kết -->
+      <div class="md:w-5/12 flex flex-col space-y-3">
+        <div class="relative rounded-2xl overflow-hidden aspect-[4/5] bg-stone-100 shadow-inner">
+          <img id="modalProductImage" src="" alt="Hoa tươi Bloomora" class="w-full h-full object-cover">
+          <span id="modalProductBadge" class="absolute top-3 left-3 bg-rose-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase shadow">
+            HOT Bán Chạy
+          </span>
+        </div>
+        <div class="bg-rose-50/70 border border-rose-100 p-3 rounded-2xl text-[11px] text-rose-800 space-y-1">
+          <div class="font-bold flex items-center space-x-1.5">
+            <i class="ph ph-camera text-base"></i>
+            <span>Quy Trình Chụp Ảnh Duyệt Thật:</span>
+          </div>
+          <p class="text-stone-600 leading-relaxed text-[11px]">
+            Trước khi giao, florist chụp cận cảnh 3 góc gửi qua Zalo. Quý khách xác nhận hài lòng mới tiến hành xuất hoa đi giao!
+          </p>
+        </div>
+      </div>
+
+      <!-- Cột Phải: Thông Tin & Tùy Chọn Đặt Hoa -->
+      <div class="md:w-7/12 flex flex-col justify-between space-y-4">
+        <div>
+          <span id="modalProductCategory" class="text-[11px] font-bold uppercase tracking-wider text-rose-600">Hoa Khai Trương</span>
+          <h3 id="modalProductName" class="font-serif-title text-xl sm:text-2xl font-bold text-stone-900 mt-1 leading-snug">Tên mẫu hoa</h3>
+          
+          <!-- Giá bán -->
+          <div class="flex items-baseline space-x-2 mt-2">
+            <span id="modalProductPrice" class="text-2xl font-extrabold text-rose-600">1.850.000₫</span>
+            <span id="modalProductOriginalPrice" class="text-xs text-stone-400 line-through">2.200.000₫</span>
+            <span class="text-[10px] bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded-full">-16%</span>
+          </div>
+
+          <!-- Mô tả hoa -->
+          <p id="modalProductDesc" class="text-xs text-stone-600 mt-2 leading-relaxed bg-stone-50 p-3 rounded-xl border border-stone-100">
+            Mô tả chi tiết loài hoa và phụ kiện đi kèm...
+          </p>
+        </div>
+
+        <!-- 1. Chọn Khung Giờ Giao Hàng Chuẩn Wish Florist -->
+        <div>
+          <label class="block text-xs font-bold text-stone-800 mb-1.5 flex items-center justify-between">
+            <span class="flex items-center space-x-1">
+              <i class="ph ph-clock text-rose-600 text-sm"></i>
+              <span>1. Chọn Khung Giờ Giao Tận Nơi: *</span>
+            </span>
+            <span class="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">Đúng hẹn 100%</span>
+          </label>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px]" id="timeSlotContainer">
+            <label class="flex items-center space-x-1.5 p-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-rose-50 cursor-pointer">
+              <input type="radio" name="modalDeliverySlot" value="08:00 - 10:00" checked class="text-rose-600 focus:ring-rose-500">
+              <span class="font-medium text-stone-700">08:00 - 10:00</span>
+            </label>
+            <label class="flex items-center space-x-1.5 p-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-rose-50 cursor-pointer">
+              <input type="radio" name="modalDeliverySlot" value="10:00 - 12:00" class="text-rose-600 focus:ring-rose-500">
+              <span class="font-medium text-stone-700">10:00 - 12:00</span>
+            </label>
+            <label class="flex items-center space-x-1.5 p-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-rose-50 cursor-pointer">
+              <input type="radio" name="modalDeliverySlot" value="13:30 - 15:30" class="text-rose-600 focus:ring-rose-500">
+              <span class="font-medium text-stone-700">13:30 - 15:30</span>
+            </label>
+            <label class="flex items-center space-x-1.5 p-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-rose-50 cursor-pointer">
+              <input type="radio" name="modalDeliverySlot" value="15:30 - 17:30" class="text-rose-600 focus:ring-rose-500">
+              <span class="font-medium text-stone-700">15:30 - 17:30</span>
+            </label>
+            <label class="flex items-center space-x-1.5 p-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-rose-50 cursor-pointer sm:col-span-2">
+              <input type="radio" name="modalDeliverySlot" value="18:00 - 20:00" class="text-rose-600 focus:ring-rose-500">
+              <span class="font-medium text-stone-700">18:00 - 20:00 (Tối hẹn hò / tiệc)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 2. Nội Dung In Băng Rôn Vi Tính (Miễn phí) -->
+        <div>
+          <label class="block text-xs font-bold text-stone-800 mb-1.5 flex items-center justify-between">
+            <span class="flex items-center space-x-1">
+              <i class="ph ph-ribbon text-rose-600 text-sm"></i>
+              <span>2. Nội Dung In Băng Rôn Vi Tính Hoặc Thiệp:</span>
+            </span>
+            <span class="text-[10px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-full">Miễn Phí 100%</span>
+          </label>
+          <textarea id="modalRibbonText" rows="2" placeholder="Ví dụ: Công ty Cổ Phần Alpha chúc mừng Khai Trương Hồng Phát!"
+            class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-xs text-stone-800 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-200 focus:outline-none transition"></textarea>
+          <div class="text-[10px] text-stone-400 mt-1 flex items-center space-x-1">
+            <i class="ph ph-info"></i>
+            <span>Bloomora in dải chữ vi tính sang trọng đính kèm hoa hoặc thiệp viết tay theo yêu cầu.</span>
+          </div>
+        </div>
+
+        <!-- 3. Số lượng & Nút Đặt Hoa -->
+        <div class="pt-2 border-t border-stone-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+          
+          <!-- Bộ tăng giảm số lượng -->
+          <div class="flex items-center border border-stone-200 rounded-xl bg-stone-50 p-1">
+            <button type="button" onclick="changeModalQty(-1)" class="w-8 h-8 rounded-lg bg-white hover:bg-stone-100 text-stone-700 font-bold flex items-center justify-center shadow-sm text-sm cursor-pointer">
+              -
+            </button>
+            <input type="number" id="modalQtyInput" value="1" min="1" max="99" readonly class="w-12 text-center text-xs font-bold bg-transparent border-0 focus:outline-none text-stone-900">
+            <button type="button" onclick="changeModalQty(1)" class="w-8 h-8 rounded-lg bg-white hover:bg-stone-100 text-stone-700 font-bold flex items-center justify-center shadow-sm text-sm cursor-pointer">
+              +
+            </button>
+          </div>
+
+          <!-- Nút Thêm Giỏ & Mua Ngay -->
+          <div class="flex items-center space-x-2 w-full sm:w-auto flex-1 justify-end">
+            <button type="button" onclick="submitModalAddToCart(false)" class="flex-1 sm:flex-initial bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs px-4 py-3 rounded-xl transition flex items-center justify-center space-x-1.5 cursor-pointer">
+              <i class="ph ph-shopping-bag text-base text-rose-600"></i>
+              <span>Thêm Vào Giỏ</span>
+            </button>
+            <button type="button" onclick="submitModalAddToCart(true)" class="flex-1 sm:flex-initial bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-md shadow-rose-600/30 transition flex items-center justify-center space-x-1.5 cursor-pointer">
+              <i class="ph ph-paper-plane-tilt text-base"></i>
+              <span>Đặt Giao Ngay</span>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= GIỎ HÀNG SLIDE-OVER DRAWER ================= -->
+  <div id="cartDrawer" onclick="if(event.target===this)closeCartDrawer()" class="hidden fixed inset-0 z-50 overflow-hidden bg-stone-900/60 backdrop-blur-sm transition-opacity">
+    <div onclick="if(event.target===this)closeCartDrawer()" class="absolute inset-y-0 right-0 max-w-full flex pl-10">
+      <div class="w-screen max-w-md bg-white shadow-2xl flex flex-col">
+        
+        <!-- Header Drawer -->
+        <div class="p-5 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+              <i class="ph ph-shopping-bag text-lg"></i>
+            </div>
+            <h3 class="font-serif-title text-base font-bold text-stone-900">Giỏ Hoa Của Bạn</h3>
+          </div>
+          <button onclick="closeCartDrawer()" class="w-8 h-8 rounded-full hover:bg-stone-200 text-stone-500 flex items-center justify-center transition cursor-pointer">
+            <i class="ph ph-x text-base"></i>
+          </button>
+        </div>
+
+        <!-- Danh sách hoa trong giỏ -->
+        <div id="cartDrawerList" class="flex-1 overflow-y-auto p-5 space-y-4">
+          <!-- Render từ js -->
+        </div>
+
+        <!-- Footer Drawer & Thanh Toán -->
+        <div class="p-5 border-t border-stone-200 bg-stone-50 space-y-3">
+          <div class="space-y-1.5 text-xs">
+            <div class="flex items-center justify-between text-stone-500">
+              <span>Tạm tính hoa tươi:</span>
+              <span id="cartDrawerSubtotal" class="font-semibold text-stone-800">0₫</span>
+            </div>
+            <div class="flex items-center justify-between text-stone-500">
+              <span>Băng rôn vi tính & Thiệp:</span>
+              <span class="font-bold text-emerald-600">Miễn Phí (0₫)</span>
+            </div>
+            <div class="flex items-center justify-between text-stone-500">
+              <span>Chụp ảnh duyệt hoa thật:</span>
+              <span class="font-bold text-emerald-600">Miễn Phí (0₫)</span>
+            </div>
+            <div class="pt-2 border-t border-stone-200 flex items-center justify-between font-bold text-stone-900 text-base">
+              <span>Tổng thanh toán:</span>
+              <span id="cartDrawerTotal" class="text-rose-600 font-extrabold text-lg">0₫</span>
+            </div>
+          </div>
+
+          <button onclick="checkoutCart()" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-3.5 px-4 rounded-xl shadow-lg shadow-rose-600/30 transition flex items-center justify-center space-x-2 cursor-pointer">
+            <i class="ph ph-check-circle text-base"></i>
+            <span>Xác Nhận Đặt Hoa & Gửi Ảnh Duyệt</span>
+          </button>
+          
+          <p class="text-[10px] text-center text-stone-400">
+            * Sau khi bấm đặt hoa, đơn hàng sẽ lập tức chuyển đến ca trực Florist để chuẩn bị hoa và gửi ảnh duyệt qua Zalo.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast thông báo nhỏ -->
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 hidden bg-stone-900 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-xl flex items-center space-x-2 transition transform duration-300">
+    <i class="ph ph-check-circle text-emerald-400 text-base"></i>
+    <span id="toastMessage">Đã thêm vào giỏ hàng!</span>
+  </div>
 
   <!-- Footer ngắn gọn cho giai đoạn 1 -->
   <footer class="bg-white border-t border-stone-200 py-6 text-center text-xs text-stone-400">
