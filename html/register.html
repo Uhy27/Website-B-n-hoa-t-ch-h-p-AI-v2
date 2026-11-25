@@ -66,6 +66,12 @@
       <p class="text-xs text-stone-400 mt-1 font-medium">Tạo tài khoản để nhận ưu đãi và quản lý lịch sử đặt hoa</p>
     </div>
 
+    <!-- HỘP THÔNG BÁO LỖI NẾU CÓ -->
+    <div id="regErrorBox" class="hidden mb-4 bg-red-50 border border-red-200 text-red-700 text-xs p-3.5 rounded-2xl flex items-start space-x-2.5">
+      <i class="ph-fill ph-warning-circle text-red-600 text-lg flex-shrink-0 mt-0.5"></i>
+      <span id="regErrorText">Vui lòng điền chính xác thông tin đăng ký.</span>
+    </div>
+
     <!-- Form -->
     <form onsubmit="handleRegister(event)" class="space-y-3.5">
       <div>
@@ -182,62 +188,8 @@
     Bloomora Floral E-Commerce &copy; 2026. Mọi quyền được bảo lưu.
   </footer>
 
-  <script>
-    function togglePassword(id, btn) {
-      const input = document.getElementById(id);
-      const icon = btn.querySelector('i');
-      if (input.type === 'password') {
-        input.type = 'text';
-        icon.className = 'ph ph-eye-slash text-rose-600';
-      } else {
-        input.type = 'password';
-        icon.className = 'ph ph-eye text-stone-400';
-      }
-    }
-
-    function checkPasswordStrength(val) {
-      const bar = document.getElementById('strengthBar');
-      const text = document.getElementById('strengthText');
-
-      if (!val) {
-        bar.style.width = '0%';
-        text.textContent = 'Chưa nhập';
-        text.className = 'text-[10px] text-stone-400 font-semibold';
-        return;
-      }
-
-      if (val.length < 6) {
-        bar.style.width = '30%';
-        bar.className = 'h-full bg-red-500 transition-all duration-300';
-        text.textContent = 'Mật khẩu yếu (<6 ký tự)';
-        text.className = 'text-[10px] text-red-500 font-semibold';
-      } else if (val.length < 9) {
-        bar.style.width = '65%';
-        bar.className = 'h-full bg-amber-500 transition-all duration-300';
-        text.textContent = 'Mức độ: Trung bình';
-        text.className = 'text-[10px] text-amber-500 font-semibold';
-      } else {
-        bar.style.width = '100%';
-        bar.className = 'h-full bg-emerald-500 transition-all duration-300';
-        text.textContent = 'Mật khẩu rất mạnh';
-        text.className = 'text-[10px] text-emerald-600 font-semibold';
-      }
-    }
-
-    function handleRegister(e) {
-      e.preventDefault();
-      const pass = document.getElementById('regPassword').value;
-      const confirm = document.getElementById('regConfirmPassword').value;
-
-      if (pass !== confirm) {
-        alert('Mật khẩu xác nhận không khớp! Vui lòng kiểm tra lại.');
-        return;
-      }
-
-      // Chuyển hướng sang màn hình Đăng Ký Thành Công
-      window.location.href = 'register-success.html';
-    }
-  </script>
+  <!-- FILE XỬ LÝ AUTH RIÊNG BIỆT -->
+  <script src="auth.js"></script>
 
 </body>
 </html>

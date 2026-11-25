@@ -49,8 +49,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['email']     = $user['email'];
                     $_SESSION['role_name'] = $user['role_name'] ?? 'customer';
 
-                    // Đi thẳng vào trang chủ không cần thông báo popup/banner
-                    header('Location: index.php');
+                    // Điều hướng tương ứng: Admin vào admin.php, khách hàng vào index.php
+                    if (strtolower((string)$_SESSION['role_name']) === 'admin') {
+                        header('Location: admin.php');
+                    } else {
+                        header('Location: index.php');
+                    }
                     exit;
                 }
             } else {

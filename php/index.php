@@ -91,9 +91,9 @@ $flash      = get_flash();
 
         <!-- Trạng thái Auth PHP -->
         <div class="flex items-center space-x-3 sm:space-x-4">
-          <nav class="hidden lg:flex items-center space-x-5 text-xs font-semibold text-stone-600">
+          <nav class="hidden lg:flex items-center space-x-4 text-xs font-semibold text-stone-600">
             <a href="index.php" class="text-rose-600">Trang Chủ</a>
-            <a href="../html/index.html" class="hover:text-rose-600 transition">Xem Bản HTML</a>
+            <a href="../html/index.html" class="hover:text-rose-600 transition">Bản HTML</a>
           </nav>
 
           <?php if ($isLoggedIn): ?>

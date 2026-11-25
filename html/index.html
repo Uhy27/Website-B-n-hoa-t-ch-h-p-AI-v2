@@ -99,10 +99,9 @@
 
         <!-- Menu & Giỏ hàng -->
         <div class="flex items-center space-x-4">
-          <nav class="hidden lg:flex items-center space-x-6 text-xs font-semibold text-stone-600">
-            <a href="#" class="text-rose-600">Trang Chủ</a>
+          <nav class="hidden lg:flex items-center space-x-5 text-xs font-semibold text-stone-600">
+            <a href="index.html" class="text-rose-600">Trang Chủ</a>
             <a href="#" class="hover:text-rose-600 transition">Mẫu Hoa Mới</a>
-            <a href="#" class="hover:text-rose-600 transition">Về Bloomora</a>
           </nav>
 
           <!-- Khu vực Tài Khoản Auth -->
@@ -231,35 +230,9 @@
     Website bán hoa tích hợp trí tuệ nhân tạo AI - Bloomora &copy; 2026.
   </footer>
 
-  <!-- SCRIPT XỬ LÝ 2 CHỨC NĂNG CƠ BẢN -->
-  <script>
-    function handleQuickSearch(e) {
-      e.preventDefault();
-      const occasion = document.getElementById('quickOccasion');
-      const price = document.getElementById('quickPrice');
-      const location = document.getElementById('quickLocation');
-
-      const notice = document.getElementById('searchResultNotice');
-      const text = document.getElementById('searchResultText');
-
-      notice.classList.remove('hidden');
-      text.innerHTML = `Bạn vừa chọn tìm: <strong>${occasion.options[occasion.selectedIndex].text}</strong> | Mức giá: <strong>${price.options[price.selectedIndex].text}</strong> | Khu vực: <strong>${location.options[location.selectedIndex].text}</strong>.`;
-    }
-    window.addEventListener('DOMContentLoaded', () => {
-      const user = localStorage.getItem('bloomora_user');
-      if (user) {
-        document.getElementById('authGuestBox').classList.add('hidden');
-        document.getElementById('authUserBox').classList.remove('hidden');
-        document.getElementById('userNameSpan').textContent = user;
-        document.getElementById('avatarLetter').textContent = user.charAt(0).toUpperCase();
-      }
-    });
-
-    function logoutHTML() {
-      localStorage.removeItem('bloomora_user');
-      window.location.reload();
-    }
-  </script>
+  <!-- FILE XỬ LÝ AUTH & APP RIÊNG BIỆT -->
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
 
 </body>
 
