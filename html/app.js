@@ -408,26 +408,42 @@
 
   // 4. LOGIC TRANG 1: ĐƠN HÀNG (ADMIN.HTML)
   let activeEditingCode = null;
+  let currentAdminOrderFilter = 'all';
+
+  window.filterAdminOrders = function (status, btnEl) {
+    currentAdminOrderFilter = status;
+    document.querySelectorAll('.admin-order-filter-btn').forEach(b => {
+      b.className = 'admin-order-filter-btn px-3 py-1.5 rounded-xl bg-stone-100 text-stone-600 hover:bg-stone-200 transition flex-shrink-0 cursor-pointer font-semibold';
+    });
+    if (btnEl) {
+      btnEl.className = 'admin-order-filter-btn px-3 py-1.5 rounded-xl bg-rose-600 text-white font-bold transition flex-shrink-0 cursor-pointer';
+    }
+    window.renderOrdersTable();
+  };
 
   window.renderOrdersTable = function () {
     const tbody = document.getElementById('ordersTableBody');
     if (!tbody) return;
 
-    const orders = window.BloomoraAdmin.getOrders();
+    const allOrders = window.BloomoraAdmin.getOrders();
     const badge = document.getElementById('orderCountBadge');
     const kpiTotal = document.getElementById('kpiTotalOrders');
     const kpiUrgent = document.getElementById('kpiUrgentOrders');
 
-    if (badge) badge.textContent = orders.length + ' đơn trong ca';
-    if (kpiTotal) kpiTotal.textContent = (orders.length + 21) + ' Đơn';
+    if (badge) badge.textContent = allOrders.length + ' đơn trong ca';
+    if (kpiTotal) kpiTotal.textContent = (allOrders.length + 21) + ' Đơn';
 
-    const urgentCount = orders.filter(o => o.status === 'preparing' || o.status === 'received').length;
+    const urgentCount = allOrders.filter(o => o.status === 'preparing' || o.status === 'received').length;
     if (kpiUrgent) kpiUrgent.textContent = urgentCount + ' Đơn Trong Ca';
+
+    const orders = currentAdminOrderFilter === 'all'
+      ? allOrders
+      : allOrders.filter(o => o.status === currentAdminOrderFilter);
 
     tbody.innerHTML = '';
 
     if (orders.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-stone-400">Không có đơn hàng nào trong ca hiện tại.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-stone-400">Không có đơn hàng nào phù hợp với bộ lọc hiện tại.</td></tr>';
       return;
     }
 
@@ -528,6 +544,85 @@
     }
   };
 
+  window.sampleFloristProofPhoto = function () {
+    const proofUrl = 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?auto=format&fit=crop&w=600&q=80';
+    const inp = document.getElementById('modalPhotoInput');
+    const select = document.getElementById('modalStatusSelect');
+    const photoBox = document.getElementById('modalPhotoContainer');
+    const photoImg = document.getElementById('modalOrderPhoto');
+
+    if (inp) inp.value = proofUrl;
+    if (select) select.value = 'photo_ready';
+    if (photoImg) photoImg.src = proofUrl;
+    if (photoBox) photoBox.classList.remove('hidden');
+  };
+
+  window.printOrderSlip = function () {
+    if (!activeEditingCode) return;
+    const orders = window.BloomoraAdmin.getOrders();
+    const order = orders.find(o => o.code === activeEditingCode);
+    if (!order) return;
+
+    const senderText = order.isAnonymous ? '*** (Gửi tặng ẩn danh) ***' : `${order.sender || 'Khách Đặt Hoa'} (${order.phone || '0912345678'})`;
+    const printWindow = window.open('', '_blank', 'width=700,height=750');
+    if (!printWindow) {
+      alert('Trình duyệt đang chặn mở cửa sổ in. Vui lòng cho phép popup để in phiếu!');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="vi">
+      <head>
+        <meta charset="UTF-8">
+        <title>Phiếu Giao Hoa & Băng Rôn - ${order.code}</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #1c1917; }
+          .header { border-bottom: 2px dashed #dc2626; padding-bottom: 12px; margin-bottom: 16px; text-align: center; }
+          .title { font-size: 20px; font-weight: bold; color: #dc2626; margin: 0; }
+          .sub { font-size: 12px; color: #78716c; margin-top: 4px; }
+          .code { font-size: 18px; font-weight: bold; font-family: monospace; background: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 6px; display: inline-block; margin-top: 6px; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+          .label { font-weight: bold; color: #44403c; width: 150px; }
+          .val { flex: 1; }
+          .ribbon-box { background: #b91c1c; color: #fef08a; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 16px; text-align: center; margin: 16px 0; border: 2px solid #ca8a04; letter-spacing: 0.5px; }
+          .footer { font-size: 11px; text-align: center; color: #a8a29e; margin-top: 24px; border-top: 1px solid #e7e5e4; padding-top: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="title">TIỆM HOA TƯƠI BLOOMORA ĐẮK LẮK</div>
+          <div class="sub">120 Phan Chu Trinh, P. Thắng Lợi, TP. Buôn Ma Thuột - Hotline: 0946618960</div>
+          <div class="code">MÃ ĐƠN HÀNG: ${order.code}</div>
+        </div>
+        <div class="row"><div class="label">Mẫu hoa tươi:</div><div class="val"><strong>${order.flower}</strong></div></div>
+        <div class="row"><div class="label">Khung giờ giao:</div><div class="val"><strong>${order.slot}</strong></div></div>
+        <div class="row"><div class="label">Người nhận:</div><div class="val"><strong>${order.receiver || 'Người Nhận'}</strong> (${order.receiverPhone || order.phone || '09xxxxxxxx'})</div></div>
+        <div class="row"><div class="label">Địa chỉ giao:</div><div class="val"><strong>${order.address || 'TP. Buôn Ma Thuột, Đắk Lắk'}</strong></div></div>
+        <div class="row"><div class="label">Người gửi:</div><div class="val">${senderText}</div></div>
+        <div class="row"><div class="label">Thanh toán:</div><div class="val"><strong>${order.paymentStatus === 'paid' ? 'ĐÃ THANH TOÁN VIETQR' : 'THU TIỀN KHI GIAO (COD)'} - ${(order.total || 1850000).toLocaleString('vi-VN')}₫</strong></div></div>
+        
+        <div style="font-size: 12px; font-weight: bold; color: #b91c1c; margin-top: 12px;">NỘI DUNG CHỮ IN TRÊN BĂNG RÔN / THIỆP:</div>
+        <div class="ribbon-box">
+          ${order.ribbon}
+        </div>
+
+        <div style="font-size: 11px; color: #57534e; background: #fafaf9; padding: 8px; border-radius: 6px; border: 1px solid #e7e5e4;">
+          * Shipper chú ý: Cầm hoa cẩn thận, không làm gãy cành. Chụp ảnh người nhận hoa gửi về tiệm khi hoàn thành giao hàng.
+        </div>
+
+        <div class="footer">
+          Bloomora Floral E-Commerce Platform © 2026.
+        </div>
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   window.openOrderModal = function (code) {
     const orders = window.BloomoraAdmin.getOrders();
     const order = orders.find(o => o.code === code);
@@ -539,6 +634,9 @@
     document.getElementById('modalOrderRibbon').textContent = 'Băng rôn: ' + order.ribbon;
     document.getElementById('modalStatusSelect').value = order.status;
     document.getElementById('modalOrderNote').value = order.note || '';
+
+    const photoInput = document.getElementById('modalPhotoInput');
+    if (photoInput) photoInput.value = order.photo || '';
 
     const photoBox = document.getElementById('modalPhotoContainer');
     const photoImg = document.getElementById('modalOrderPhoto');
@@ -564,10 +662,11 @@
     const newStatus = select.value;
     const newStatusText = select.options[select.selectedIndex].text;
     const newNote = document.getElementById('modalOrderNote').value.trim();
+    const photoInput = document.getElementById('modalPhotoInput')?.value.trim();
 
-    let newPhoto = null;
-    if (newStatus === 'photo_ready') {
-      newPhoto = 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?auto=format&fit=crop&w=400&q=80';
+    let newPhoto = photoInput || null;
+    if (newStatus === 'photo_ready' && !newPhoto) {
+      newPhoto = 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?auto=format&fit=crop&w=600&q=80';
     }
 
     window.BloomoraAdmin.updateOrder(activeEditingCode, newStatus, newStatusText, newNote, newPhoto);
@@ -1192,17 +1291,89 @@
     }
   };
 
+  let appliedCartVoucher = null;
+  let latestCheckoutOrder = null;
+
+  window.applyCartVoucher = function () {
+    const input = document.getElementById('cartVoucherInput');
+    const code = input?.value.trim().toUpperCase();
+    if (!code) {
+      alert('Vui lòng nhập mã giảm giá!');
+      return;
+    }
+
+    const subtotal = window.BloomoraCart.getTotal();
+    if (subtotal <= 0) {
+      alert('Giỏ hàng chưa có sản phẩm để áp dụng mã giảm giá!');
+      return;
+    }
+
+    if (code === 'BMT50K') {
+      appliedCartVoucher = { code: 'BMT50K', discount: 50000, desc: 'Giảm 50.000₫ cho khách Đắk Lắk' };
+    } else if (code === 'BLOOMNEW10') {
+      const disc = Math.round(subtotal * 0.1);
+      appliedCartVoucher = { code: 'BLOOMNEW10', discount: disc, desc: 'Giảm 10% đơn hàng đầu tiên' };
+    } else if (code === 'FREESHIPBMT') {
+      appliedCartVoucher = { code: 'FREESHIPBMT', discount: 15000, desc: 'Miễn phí giao hàng nội thành Buôn Ma Thuột' };
+    } else {
+      alert(`Mã giảm giá "${code}" không hợp lệ hoặc đã hết hạn! Bạn có thể thử mã BMT50K hoặc BLOOMNEW10.`);
+      return;
+    }
+
+    const box = document.getElementById('voucherNoticeBox');
+    const text = document.getElementById('voucherNoticeText');
+    if (box && text) {
+      box.classList.remove('hidden');
+      text.innerHTML = `<i class="ph-bold ph-check"></i> Đã áp dụng: ${appliedCartVoucher.desc} (-${appliedCartVoucher.discount.toLocaleString('vi-VN')}₫)`;
+    }
+
+    window.renderCartDrawer();
+  };
+
+  window.removeCartVoucher = function () {
+    appliedCartVoucher = null;
+    const box = document.getElementById('voucherNoticeBox');
+    const input = document.getElementById('cartVoucherInput');
+    if (box) box.classList.add('hidden');
+    if (input) input.value = '';
+    window.renderCartDrawer();
+  };
+
   window.renderCartDrawer = function () {
     const list = document.getElementById('cartDrawerList');
     const subtotalEl = document.getElementById('cartDrawerSubtotal');
+    const discountRow = document.getElementById('cartDiscountRow');
+    const discountEl = document.getElementById('cartDrawerDiscount');
     const totalEl = document.getElementById('cartDrawerTotal');
     if (!list) return;
 
-    const items = window.BloomoraCart.getItems();
-    const total = window.BloomoraCart.getTotal();
+    // Tự điền thông tin người gửi nếu là thành viên đã đăng nhập (US10)
+    try {
+      const authUser = JSON.parse(localStorage.getItem('bloomora_auth_user'));
+      if (authUser) {
+        const sName = document.getElementById('cartSenderName');
+        const sPhone = document.getElementById('cartSenderPhone');
+        if (sName && !sName.value) sName.value = authUser.name || authUser.fullName || 'Nguyễn Văn Khách';
+        if (sPhone && !sPhone.value) sPhone.value = authUser.phone || '0912345678';
+      }
+    } catch (e) {}
 
-    if (subtotalEl) subtotalEl.textContent = total.toLocaleString('vi-VN') + '₫';
-    if (totalEl) totalEl.textContent = total.toLocaleString('vi-VN') + '₫';
+    const items = window.BloomoraCart.getItems();
+    const subtotal = window.BloomoraCart.getTotal();
+    let discount = 0;
+
+    if (appliedCartVoucher) {
+      discount = Math.min(appliedCartVoucher.discount, subtotal);
+      if (discountRow) discountRow.classList.remove('hidden');
+      if (discountEl) discountEl.textContent = `-${discount.toLocaleString('vi-VN')}₫`;
+    } else {
+      if (discountRow) discountRow.classList.add('hidden');
+    }
+
+    const finalTotal = Math.max(0, subtotal - discount);
+
+    if (subtotalEl) subtotalEl.textContent = subtotal.toLocaleString('vi-VN') + '₫';
+    if (totalEl) totalEl.textContent = finalTotal.toLocaleString('vi-VN') + '₫';
 
     list.innerHTML = '';
 
@@ -1267,50 +1438,260 @@
       return;
     }
 
-    let userPhone = '0912345678';
-    try {
-      const authUser = JSON.parse(localStorage.getItem('bloomora_auth_user'));
-      if (authUser && authUser.phone) {
-        userPhone = authUser.phone;
-      } else {
-        const inputPhone = prompt('Vui lòng nhập Số điện thoại của bạn (để tra cứu tiến độ & duyệt ảnh hoa thật):', '0912345678');
-        if (inputPhone && inputPhone.trim()) userPhone = inputPhone.trim();
-      }
-    } catch (e) {}
+    const senderName = document.getElementById('cartSenderName')?.value.trim() || 'Nguyễn Văn Khách';
+    const senderPhone = document.getElementById('cartSenderPhone')?.value.trim() || '0912345678';
+    const receiverName = document.getElementById('cartReceiverName')?.value.trim();
+    const receiverPhone = document.getElementById('cartReceiverPhone')?.value.trim();
+    const deliveryAddress = document.getElementById('cartDeliveryAddress')?.value.trim();
+    const isAnonymous = document.getElementById('cartIsAnonymous')?.checked || false;
+
+    if (!receiverName) {
+      alert('Vui lòng nhập Tên người nhận hoa!');
+      document.getElementById('cartReceiverName')?.focus();
+      return;
+    }
+
+    if (!receiverPhone) {
+      alert('Vui lòng nhập Số điện thoại người nhận hoa!');
+      document.getElementById('cartReceiverPhone')?.focus();
+      return;
+    }
+
+    if (!deliveryAddress) {
+      alert('Vui lòng nhập Địa chỉ giao hoa tại Buôn Ma Thuột / Đắk Lắk!');
+      document.getElementById('cartDeliveryAddress')?.focus();
+      return;
+    }
+
+    const subtotal = window.BloomoraCart.getTotal();
+    let discount = 0;
+    if (appliedCartVoucher) {
+      discount = Math.min(appliedCartVoucher.discount, subtotal);
+    }
+    const finalTotal = Math.max(0, subtotal - discount);
 
     const orders = window.BloomoraAdmin.getOrders();
     const orderCode = 'BL' + Math.floor(10000 + Math.random() * 90000);
     const summaryFlower = items.map(i => `${i.name} (x${i.qty})`).join(', ');
     const primaryRibbon = items[0].ribbon;
     const primarySlot = items[0].slot;
-    const totalAmount = window.BloomoraCart.getTotal();
 
     const newOrder = {
       code: orderCode,
       flower: summaryFlower,
       ribbon: primaryRibbon,
       slot: primarySlot,
-      phone: userPhone,
-      sender: 'Khách Đặt Hoa',
-      receiver: 'Người Nhận Hoa',
-      address: '120 Phan Chu Trinh, P. Thắng Lợi, TP. Buôn Ma Thuột, Đắk Lắk',
-      total: totalAmount,
+      phone: senderPhone,
+      sender: senderName,
+      receiver: receiverName,
+      receiverPhone: receiverPhone,
+      address: deliveryAddress,
+      isAnonymous: isAnonymous,
+      subtotal: subtotal,
+      discount: discount,
+      total: finalTotal,
+      voucherCode: appliedCartVoucher ? appliedCartVoucher.code : null,
       paymentMethod: 'vietqr',
       paymentStatus: 'unpaid',
       status: 'received',
       statusText: '1. Đã Tiếp Nhận',
       photo: '',
       photoStatus: 'none',
-      note: 'Đơn mới đặt qua website Bloomora Đắk Lắk. Khách yêu cầu chụp ảnh hoa thật Photo Proof trước khi giao.'
+      note: isAnonymous ? 'Gửi tặng ẩn danh. Che tên người gửi trên phiếu giao hoa.' : 'Đơn mới đặt qua website Bloomora Đắk Lắk.'
     };
 
     orders.unshift(newOrder);
     localStorage.setItem('bloomora_orders', JSON.stringify(orders));
 
+    latestCheckoutOrder = newOrder;
     window.BloomoraCart.clear();
+    appliedCartVoucher = null;
     window.closeCartDrawer();
 
-    alert(`🎉 ĐẶT HOA THÀNH CÔNG!\n\n- Mã đơn hàng: ${orderCode}\n- Số điện thoại tra cứu: ${userPhone}\n- Tổng tiền: ${totalAmount.toLocaleString('vi-VN')}₫\n\nFlorist Bloomora Buôn Ma Thuột đã tiếp nhận đơn. Bạn có thể bấm 'Tra Cứu Đơn' trên thanh điều hướng để xem ảnh hoa thật Photo Proof ngay khi cắm xong!`);
+    // Mở popup thanh toán VietQR Napas
+    window.openVietQRModal(orderCode, finalTotal);
+  };
+
+  // 7.1. TIỆN ÍCH THANH TOÁN VIETQR NAPAS
+  window.openVietQRModal = function (orderCode, amount) {
+    const modal = document.getElementById('vietQRModal');
+    const qrImg = document.getElementById('vietQRImage');
+    const amountEl = document.getElementById('vietQRAmount');
+    const contentEl = document.getElementById('vietQRContent');
+    if (!modal) return;
+
+    if (amountEl) amountEl.textContent = amount.toLocaleString('vi-VN') + '₫';
+    if (contentEl) contentEl.textContent = orderCode;
+
+    // Sinh link ảnh VietQR chuẩn Napas 24/7
+    if (qrImg) {
+      qrImg.src = `https://api.vietqr.io/image/970422-0946618960-compact2.jpg?amount=${amount}&addInfo=${orderCode}&accountName=TIEM%20HOA%20BLOOMORA%20DAK%20LAK`;
+    }
+
+    modal.classList.remove('hidden');
+  };
+
+  window.closeVietQRModal = function () {
+    document.getElementById('vietQRModal')?.classList.add('hidden');
+  };
+
+  window.handleFinishVietQRPayment = function () {
+    window.closeVietQRModal();
+    if (!latestCheckoutOrder) return;
+
+    alert(`🎉 CẢM ƠN QUÝ KHÁCH!\n\nĐơn hàng ${latestCheckoutOrder.code} đã được chuyển sang ca trực Florist Mai Phương tại Buôn Ma Thuột.\nTiệm sẽ tuyển chọn hoa tươi mới và chụp ảnh hoa thật gửi bạn duyệt trước khi giao!`);
+
+    // Mở ngay cửa sổ tra cứu đơn hàng để khách theo dõi
+    const codeInp = document.getElementById('trackOrderCode');
+    const phoneInp = document.getElementById('trackOrderPhone');
+    if (codeInp && phoneInp) {
+      codeInp.value = latestCheckoutOrder.code;
+      phoneInp.value = latestCheckoutOrder.phone;
+      window.openTrackOrderModal();
+      window.handleTrackOrder();
+    }
+  };
+
+  window.copyText = function (text, msg) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        window.showToast(msg || 'Đã sao chép vào bộ nhớ tạm!');
+      });
+    } else {
+      prompt('Nhấn Ctrl+C để sao chép:', text);
+    }
+  };
+
+  // 7.2. TIỆN ÍCH HỒ SƠ THÀNH VIÊN & LỊCH SỬ ĐƠN HÀNG (US10 - US15)
+  window.openCustomerProfileModal = function () {
+    const modal = document.getElementById('customerProfileModal');
+    if (!modal) return;
+
+    try {
+      const authUser = JSON.parse(localStorage.getItem('bloomora_auth_user'));
+      if (authUser) {
+        document.getElementById('profileName').textContent = authUser.name || authUser.fullName || 'Nguyễn Văn Khách';
+        document.getElementById('profileEmail').textContent = authUser.email || 'khachhang@gmail.com';
+        document.getElementById('infoFullName').value = authUser.name || authUser.fullName || 'Nguyễn Văn Khách';
+        document.getElementById('infoPhone').value = authUser.phone || '0912345678';
+      }
+    } catch (e) {}
+
+    window.switchProfileTab('orders');
+    window.renderCustomerOrders();
+    modal.classList.remove('hidden');
+  };
+
+  window.closeCustomerProfileModal = function () {
+    document.getElementById('customerProfileModal')?.classList.add('hidden');
+  };
+
+  window.switchProfileTab = function (tab) {
+    const tabOrders = document.getElementById('profileTabOrders');
+    const tabInfo = document.getElementById('profileTabInfo');
+    const btnOrders = document.getElementById('tabBtnOrders');
+    const btnInfo = document.getElementById('tabBtnInfo');
+
+    if (tab === 'orders') {
+      tabOrders?.classList.remove('hidden');
+      tabInfo?.classList.add('hidden');
+      if (btnOrders) btnOrders.className = 'px-3.5 py-1.5 rounded-xl bg-rose-600 text-white transition cursor-pointer';
+      if (btnInfo) btnInfo.className = 'px-3.5 py-1.5 rounded-xl text-stone-600 hover:bg-stone-100 transition cursor-pointer';
+      window.renderCustomerOrders();
+    } else {
+      tabOrders?.classList.add('hidden');
+      tabInfo?.classList.remove('hidden');
+      if (btnOrders) btnOrders.className = 'px-3.5 py-1.5 rounded-xl text-stone-600 hover:bg-stone-100 transition cursor-pointer';
+      if (btnInfo) btnInfo.className = 'px-3.5 py-1.5 rounded-xl bg-rose-600 text-white transition cursor-pointer';
+    }
+  };
+
+  window.renderCustomerOrders = function () {
+    const list = document.getElementById('customerOrdersList');
+    if (!list) return;
+
+    const orders = window.BloomoraAdmin.getOrders();
+    // Lấy các đơn của khách
+    let userPhone = '0912345678';
+    try {
+      const authUser = JSON.parse(localStorage.getItem('bloomora_auth_user'));
+      if (authUser && authUser.phone) userPhone = authUser.phone;
+    } catch (e) {}
+
+    const myOrders = orders.filter(o => !o.phone || o.phone === userPhone || o.phone === '0912345678');
+
+    if (myOrders.length === 0) {
+      list.innerHTML = '<div class="py-8 text-center text-stone-400 text-xs">Bạn chưa có đơn đặt hoa nào gần đây.</div>';
+      return;
+    }
+
+    list.innerHTML = myOrders.map(o => {
+      const canCancel = o.status === 'received';
+      let statusBadge = '<span class="bg-stone-100 text-stone-700 px-2 py-0.5 rounded-full text-[10px] font-bold">1. Chờ Xác Nhận</span>';
+      if (o.status === 'preparing') statusBadge = '<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold">2. Đang Cắm Hoa</span>';
+      else if (o.status === 'photo_ready') statusBadge = '<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-bold ring-1 ring-amber-400">3. Đã Chụp Ảnh Thật</span>';
+      else if (o.status === 'delivering') statusBadge = '<span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-[10px] font-bold">4. Đang Giao Hàng</span>';
+      else if (o.status === 'completed') statusBadge = '<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] font-bold">5. Đã Giao Thành Công</span>';
+      else if (o.status === 'cancelled') statusBadge = '<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-[10px] font-bold">Đã Hủy Đơn</span>';
+
+      return `
+        <div class="p-3.5 bg-stone-50 rounded-2xl border border-stone-200/90 text-xs space-y-2">
+          <div class="flex items-center justify-between font-bold">
+            <span class="font-mono text-rose-600">${o.code}</span>
+            <div>${statusBadge}</div>
+          </div>
+          <div class="font-semibold text-stone-900">${o.flower}</div>
+          <div class="text-[11px] text-stone-500 flex items-center justify-between">
+            <span>Giờ giao: ${o.slot}</span>
+            <span class="font-extrabold text-rose-600">${(o.total || 1850000).toLocaleString('vi-VN')}₫</span>
+          </div>
+          <div class="pt-2 border-t border-stone-200/70 flex items-center justify-between gap-2">
+            <button onclick="window.closeCustomerProfileModal(); document.getElementById('trackOrderCode').value='${o.code}'; document.getElementById('trackOrderPhone').value='${o.phone || '0912345678'}'; window.openTrackOrderModal(); window.handleTrackOrder();" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-3 py-1.5 rounded-xl text-[11px] transition cursor-pointer">
+              <i class="ph ph-magnifying-glass mr-1"></i> Theo Dõi Tiến Độ & Duyệt Ảnh
+            </button>
+            ${canCancel ? `
+              <button onclick="cancelOrderCustomer('${o.code}')" class="text-stone-400 hover:text-red-600 font-bold text-[11px] px-2 py-1 transition cursor-pointer">
+                Hủy Đơn Hàng
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
+
+  window.cancelOrderCustomer = function (code) {
+    if (!confirm(`Bạn có chắc chắn muốn hủy đơn hàng ${code} không? Thao tác này chỉ thực hiện được khi đơn chưa bắt đầu cắm hoa.`)) return;
+
+    const orders = window.BloomoraAdmin.getOrders();
+    const order = orders.find(o => o.code === code);
+    if (order && order.status === 'received') {
+      order.status = 'cancelled';
+      order.statusText = 'Đã Hủy';
+      localStorage.setItem('bloomora_orders', JSON.stringify(orders));
+      window.renderCustomerOrders();
+      alert(`Đã hủy đơn hàng ${code} thành công.`);
+    } else {
+      alert('Đơn hàng đã bắt đầu cắm hoa hoặc đang giao, không thể tự hủy trên website. Vui lòng liên hệ Hotline 0946618960 để được hỗ trợ.');
+    }
+  };
+
+  window.saveCustomerProfileInfo = function () {
+    const name = document.getElementById('infoFullName')?.value.trim();
+    const phone = document.getElementById('infoPhone')?.value.trim();
+    const addr = document.getElementById('infoAddress')?.value.trim();
+
+    try {
+      const authUser = JSON.parse(localStorage.getItem('bloomora_auth_user')) || {};
+      authUser.name = name;
+      authUser.fullName = name;
+      authUser.phone = phone;
+      authUser.address = addr;
+      localStorage.setItem('bloomora_auth_user', JSON.stringify(authUser));
+      localStorage.setItem('bloomora_user', JSON.stringify(authUser));
+      localStorage.setItem('bloomora_current_user', JSON.stringify(authUser));
+      window.showToast('Đã lưu thông tin tài khoản và sổ địa chỉ thành công!');
+    } catch (e) {}
   };
 
   window.updateCartBadge = function () {
@@ -1741,7 +2122,92 @@
     }
   };
 
-  // 16. TỰ ĐỘNG KHỞI TẠO THEO TRANG ĐANG MỞ
+  // 16. HỖ TRỢ XEM CHÍNH SÁCH FOOTER (POLICY MODAL)
+  window.openPolicyModal = function (type) {
+    const modal = document.getElementById('policyModal');
+    const titleEl = document.getElementById('policyModalTitle');
+    const contentEl = document.getElementById('policyModalContent');
+    if (!modal || !titleEl || !contentEl) return;
+
+    const policies = {
+      delivery: {
+        title: 'Chính Sách Giao Hỏa Tốc 60 Phút',
+        icon: 'ph-clock-countdown text-rose-600',
+        content: `
+          <div class="space-y-3 text-xs leading-relaxed text-stone-700">
+            <p><strong>1. Phạm vi áp dụng:</strong> Toàn bộ các phường nội thành TP. Buôn Ma Thuột (Thắng Lợi, Tân Lợi, Tự An, Tân Lập, Thành Nhất, Tân Tiến, Tân Thành, Thành Công, Ea Tam...).</p>
+            <p><strong>2. Quy trình hỏa tốc:</strong></p>
+            <ul class="list-disc pl-5 space-y-1">
+              <li>0 - 25 phút: Nghệ nhân florist tại xưởng thực hiện cắm hoa theo mẫu.</li>
+              <li>25 - 30 phút: Chụp ảnh Photo Proof gửi khách hàng xem trước.</li>
+              <li>30 - 60 phút: Shipper hỏa tốc vận chuyển đến tận tay người nhận bằng thùng chống rung lắc chuyên dụng.</li>
+            </ul>
+            <p><strong>3. Cam kết thời gian:</strong> Nếu giao trễ quá 15 phút do lỗi từ cửa hàng, Bloomora miễn phí 100% cước giao hàng và tặng voucher 50.000₫ cho đơn hàng kế tiếp.</p>
+          </div>
+        `
+      },
+      refund: {
+        title: 'Chính Sách Hoàn Tiền & Đổi Mới 100%',
+        icon: 'ph-shield-check text-emerald-600',
+        content: `
+          <div class="space-y-3 text-xs leading-relaxed text-stone-700">
+            <p><strong>1. Điều kiện hoàn tiền hoặc đổi mới:</strong></p>
+            <ul class="list-disc pl-5 space-y-1">
+              <li>Hoa nhận được bị dập nát, gãy cành, héo úa hoặc không tươi mới.</li>
+              <li>Sản phẩm giao thực tế khác biệt lớn (trên 20%) so với hình ảnh Photo Proof đã được khách duyệt.</li>
+              <li>Giao sai mẫu hoa, sai thông tin nội dung băng rôn/thiệp chúc mừng.</li>
+            </ul>
+            <p><strong>2. Hình thức xử lý:</strong></p>
+            <ul class="list-disc pl-5 space-y-1">
+              <li><strong>Đổi mới hỏa tốc:</strong> Cắm lại bó hoa mới và giao lại trong vòng 60 - 90 phút hoàn toàn miễn phí.</li>
+              <li><strong>Hoàn tiền 100%:</strong> Hoàn tiền chuyển khoản qua VietQR/Napas ngay trong vòng 30 phút sau khi xác nhận phản hồi.</li>
+            </ul>
+          </div>
+        `
+      },
+      payment: {
+        title: 'Hướng Dẫn Thanh Toán VietQR / MoMo',
+        icon: 'ph-qr-code text-indigo-600',
+        content: `
+          <div class="space-y-3 text-xs leading-relaxed text-stone-700">
+            <p><strong>1. Thanh toán quét mã VietQR Napas 247:</strong></p>
+            <ul class="list-disc pl-5 space-y-1">
+              <li>Mở ứng dụng ngân hàng bất kỳ (Vietcombank, MB, Techcombank, BIDV, VPBank, ACB...).</li>
+              <li>Chọn tính năng "Quét mã QR" và hướng camera vào mã QR của đơn hàng.</li>
+              <li>Hệ thống tự động điền đúng Số Tiền và Cú pháp (Mã đơn hàng <code>BLxxxxx</code>). Khách hàng không cần nhập tay.</li>
+            </ul>
+            <p><strong>2. Thanh toán khi nhận hàng (COD):</strong> Áp dụng cho các đơn hàng hoa tươi nội thành Buôn Ma Thuột có giá trị dưới 1.500.000₫.</p>
+          </div>
+        `
+      },
+      vat: {
+        title: 'Xuất Hóa Đơn Điện Tử VAT Doanh Nghiệp',
+        icon: 'ph-receipt text-amber-600',
+        content: `
+          <div class="space-y-3 text-xs leading-relaxed text-stone-700">
+            <p>Bloomora cung cấp đầy đủ hóa đơn điện tử VAT (hóa đơn đỏ hợp lệ 8% - 10%) cho các doanh nghiệp, cơ quan ban ngành tại tỉnh Đắk Lắk và trên toàn quốc.</p>
+            <p><strong>Cách thức đăng ký xuất VAT:</strong></p>
+            <ul class="list-disc pl-5 space-y-1">
+              <li>Tại bước Thanh toán / Giỏ hàng, quý khách nhập Tên Công Ty, Mã Số Thuế và Email nhận hóa đơn vào ô "Ghi chú đơn hàng".</li>
+              <li>Hóa đơn điện tử có mã của Cơ quan Thuế sẽ được gửi tự động qua email của quý khách trong vòng 24 giờ sau khi đơn hàng giao thành công.</li>
+            </ul>
+          </div>
+        `
+      }
+    };
+
+    const target = policies[type] || policies.delivery;
+    titleEl.innerHTML = `<i class="ph-bold ${target.icon} text-lg mr-2"></i><span>${target.title}</span>`;
+    contentEl.innerHTML = target.content;
+    modal.classList.remove('hidden');
+  };
+
+  window.closePolicyModal = function () {
+    const modal = document.getElementById('policyModal');
+    if (modal) modal.classList.add('hidden');
+  };
+
+  // 17. TỰ ĐỘNG KHỞI TẠO THEO TRANG ĐANG MỞ
   document.addEventListener('DOMContentLoaded', () => {
     // Trang Chủ: Khởi tạo lưới sản phẩm Wish Florist & Giỏ hàng
     if (document.getElementById('catalogGrid')) {
