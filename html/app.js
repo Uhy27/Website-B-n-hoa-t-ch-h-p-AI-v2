@@ -8,41 +8,67 @@
 
   // 1. Khởi tạo kho dữ liệu trong LocalStorage
   function initAppData() {
-    // 1.1 Đơn hàng trong ca
-    if (!localStorage.getItem('bloomora_orders')) {
+    // 1.1 Đơn hàng trong ca (Phiên bản thị trường Đắk Lắk chuẩn 5 giai đoạn)
+    const ordersVersion = localStorage.getItem('bloomora_orders_version');
+    if (!localStorage.getItem('bloomora_orders') || ordersVersion !== 'v2') {
       const defaultOrders = [
         {
           code: 'BL89241',
-          flower: 'Kệ Khai Trương Đại Cát',
-          ribbon: 'CHÚC MỪNG KHAI TRƯƠNG HỒNG PHÁT',
+          flower: 'Kệ Khai Trương Đại Cát Hồng Phát',
+          ribbon: 'CÔNG TY XÂY DỰNG CHÚC MỪNG KHAI TRƯƠNG HỒNG PHÁT',
           slot: '15:30 - 17:30',
           status: 'photo_ready',
           statusText: '3. Đã Chụp Ảnh Thật',
+          phone: '0912345678',
+          sender: 'Nguyễn Văn Khách',
+          receiver: 'Công ty Xây Dựng Đắk Lắk',
+          address: '120 Phan Chu Trinh, P. Thắng Lợi, TP. Buôn Ma Thuột, Đắk Lắk',
+          total: 1815000,
+          paymentMethod: 'vietqr',
+          paymentStatus: 'paid',
           photo: 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?auto=format&fit=crop&w=400&q=80',
-          note: 'Hoa hồng nhập khẩu đỏ tươi, nơ đỏ viền kim tuyến vàng'
+          photoStatus: 'pending_approval',
+          note: 'Kệ hoa đã cắm xong đúng tone đỏ hồng phát, chờ khách duyệt'
         },
         {
           code: 'BL17305',
-          flower: 'Bó Hồng Đỏ Nồng Nàn 99 Bông',
-          ribbon: 'Yêu em mãi mãi',
+          flower: 'Bó Hồng Đỏ Nồng Nàn 99 Bông (Forever Love)',
+          ribbon: 'Thiệp: Chúc em sinh nhật luôn rạng ngời hạnh phúc',
           slot: '15:30 - 17:30',
           status: 'preparing',
           statusText: '2. Đang Cắm Hoa',
+          phone: '0988776655',
+          sender: 'Trần Minh Hoàng',
+          receiver: 'Lê Thu Thảo',
+          address: '45 Lê Duẩn, P. Tự An, TP. Buôn Ma Thuột, Đắk Lắk',
+          total: 1265000,
+          paymentMethod: 'vietqr',
+          paymentStatus: 'paid',
           photo: '',
-          note: 'Florist Mai Phương đang tuyển chọn hoa tại xưởng'
+          photoStatus: 'none',
+          note: 'Khách gửi tặng ẩn danh, tuyển chọn 99 bông hồng đỏ tươi đẹp'
         },
         {
           code: 'BL22419',
           flower: 'Chậu Lan Hồ Điệp Hoàng Kim 5 Cành',
-          ribbon: 'Mừng Khai Trương Phát Tài',
+          ribbon: 'VIETCOMBANK ĐẮK LẮK CHÚC MỪNG PHÁT TÀI THỊNH VƯỢNG',
           slot: '18:00 - 20:00',
           status: 'received',
           statusText: '1. Đã Tiếp Nhận',
+          phone: '0909112233',
+          sender: 'Ngân hàng Vietcombank Đắk Lắk',
+          receiver: 'Văn phòng Công chứng Ban Mê',
+          address: '88 Nguyễn Tất Thành, P. Tân Lợi, TP. Buôn Ma Thuột, Đắk Lắk',
+          total: 2515000,
+          paymentMethod: 'vietqr',
+          paymentStatus: 'unpaid',
           photo: '',
-          note: 'Đã tiếp nhận yêu cầu, chuẩn bị chậu gốm mộc'
+          photoStatus: 'none',
+          note: 'Đơn mới đặt qua VietQR, chờ đối soát tiền chuyển khoản'
         }
       ];
       localStorage.setItem('bloomora_orders', JSON.stringify(defaultOrders));
+      localStorage.setItem('bloomora_orders_version', 'v2');
     }
 
     // 1.2 Kho nguyên vật liệu florist
@@ -420,16 +446,31 @@
       }
 
       const tr = document.createElement('tr');
+      const isPaid = order.paymentStatus === 'paid';
+      const paymentActionHtml = isPaid
+        ? '<span class="inline-flex items-center space-x-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md font-bold"><i class="ph-bold ph-check"></i><span>Đã Nhận Tiền</span></span>'
+        : `<button onclick="window.confirmOrderPayment('${order.code}')" class="inline-flex items-center space-x-1 text-[10px] text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md font-bold transition cursor-pointer" title="Admin đối soát tiền VietQR"><i class="ph-bold ph-arrows-clockwise"></i><span>Đối Soát VietQR</span></button>`;
+
       tr.innerHTML = `
-        <td class="py-3 font-mono font-bold text-rose-600">${order.code}</td>
+        <td class="py-3">
+          <div class="font-mono font-bold text-rose-600">${order.code}</div>
+          <div class="text-[10px] text-stone-400 flex items-center space-x-1"><i class="ph ph-phone"></i><span>${order.phone || '0912345678'}</span></div>
+        </td>
         <td class="py-3">
           <div class="font-semibold text-stone-900">${order.flower}</div>
-          <div class="text-[11px] text-stone-400 truncate max-w-[200px]">${order.ribbon}</div>
+          <div class="text-[10px] text-stone-500 truncate max-w-[220px] flex items-center space-x-1">
+            <i class="ph ph-map-pin text-rose-500 flex-shrink-0"></i>
+            <span class="truncate">${order.address || 'TP. Buôn Ma Thuột, Đắk Lắk'}</span>
+          </div>
+          <div class="text-[10px] text-stone-400 italic truncate max-w-[220px]">Băng rôn: ${order.ribbon}</div>
         </td>
         <td class="py-3 font-semibold text-stone-800">${order.slot}</td>
-        <td class="py-3">${statusBadge}</td>
+        <td class="py-3 space-y-1">
+          <div>${statusBadge}</div>
+          <div>${paymentActionHtml}</div>
+        </td>
         <td class="py-3 text-right">
-          <button onclick="openOrderModal('${order.code}')" class="bg-stone-100 hover:bg-rose-50 hover:text-rose-600 px-3 py-1.5 rounded-lg font-semibold transition text-xs">
+          <button onclick="openOrderModal('${order.code}')" class="bg-stone-100 hover:bg-rose-50 hover:text-rose-600 px-3 py-1.5 rounded-lg font-semibold transition text-xs cursor-pointer">
             Cập Nhật
           </button>
         </td>
@@ -689,6 +730,39 @@
     window.BloomoraAdmin.saveProduct(prodData);
     window.closeProductModal();
     window.renderProductsTable();
+  };
+
+  // Tính Năng AI 3 (Tuỳ Chọn Admin): AI Viết Mô Tả Mẫu Hoa Mới
+  window.generateAIProductDesc = async function () {
+    const name = document.getElementById('prodName')?.value.trim();
+    const category = document.getElementById('prodCategory')?.value || 'Hoa Khai Trương';
+    const price = document.getElementById('prodPrice')?.value || '1000000';
+    const descEl = document.getElementById('prodDesc');
+    if (!descEl) return;
+
+    if (!name) {
+      alert('Vui lòng nhập Tên mẫu hoa trước để AI có thể sinh mô tả phù hợp!');
+      document.getElementById('prodName')?.focus();
+      return;
+    }
+
+    descEl.value = 'AI đang sáng tạo mô tả nghệ thuật cho mẫu hoa...';
+
+    try {
+      const res = await fetch('../php/api/ai/product-desc.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, category: category, price: price })
+      });
+      const data = await res.json();
+      if (data && data.success && data.description) {
+        descEl.value = data.description;
+        return;
+      }
+    } catch (e) {}
+
+    // Fallback heuristic nếu không qua server
+    descEl.value = `Mẫu hoa ${name} thuộc phân loại ${category}, được các nghệ nhân florist tại tiệm Bloomora Buôn Ma Thuột thiết kế tinh tế. Tuyển chọn hoa tươi mới trong ngày nhập từ Đà Lạt, kết hợp giấy bọc cao cấp và ruy-băng in vi tính. Cam kết chụp ảnh hoa thật (Photo Proof) gửi khách duyệt trước khi giao hàng trong 60-90 phút.`;
   };
 
   window.handleDeleteProduct = function (id) {
@@ -1193,21 +1267,41 @@
       return;
     }
 
+    let userPhone = '0912345678';
+    try {
+      const authUser = JSON.parse(localStorage.getItem('bloomora_auth_user'));
+      if (authUser && authUser.phone) {
+        userPhone = authUser.phone;
+      } else {
+        const inputPhone = prompt('Vui lòng nhập Số điện thoại của bạn (để tra cứu tiến độ & duyệt ảnh hoa thật):', '0912345678');
+        if (inputPhone && inputPhone.trim()) userPhone = inputPhone.trim();
+      }
+    } catch (e) {}
+
     const orders = window.BloomoraAdmin.getOrders();
     const orderCode = 'BL' + Math.floor(10000 + Math.random() * 90000);
     const summaryFlower = items.map(i => `${i.name} (x${i.qty})`).join(', ');
     const primaryRibbon = items[0].ribbon;
     const primarySlot = items[0].slot;
+    const totalAmount = window.BloomoraCart.getTotal();
 
     const newOrder = {
       code: orderCode,
       flower: summaryFlower,
       ribbon: primaryRibbon,
       slot: primarySlot,
+      phone: userPhone,
+      sender: 'Khách Đặt Hoa',
+      receiver: 'Người Nhận Hoa',
+      address: '120 Phan Chu Trinh, P. Thắng Lợi, TP. Buôn Ma Thuột, Đắk Lắk',
+      total: totalAmount,
+      paymentMethod: 'vietqr',
+      paymentStatus: 'unpaid',
       status: 'received',
       statusText: '1. Đã Tiếp Nhận',
       photo: '',
-      note: 'Đơn mới đặt qua website Bloomora. Khách yêu cầu chụp ảnh duyệt trước khi giao.'
+      photoStatus: 'none',
+      note: 'Đơn mới đặt qua website Bloomora Đắk Lắk. Khách yêu cầu chụp ảnh hoa thật Photo Proof trước khi giao.'
     };
 
     orders.unshift(newOrder);
@@ -1216,7 +1310,7 @@
     window.BloomoraCart.clear();
     window.closeCartDrawer();
 
-    alert(`🎉 ĐẶT HOA THÀNH CÔNG!\n\nMã đơn hàng của bạn: ${orderCode}\nFlorist Bloomora đã nhận đơn và đang chuẩn bị hoa.\nTrước khi giao hàng, chúng tôi sẽ chụp ảnh hoa thật gửi Zalo/SMS cho quý khách duyệt trước 100%!`);
+    alert(`🎉 ĐẶT HOA THÀNH CÔNG!\n\n- Mã đơn hàng: ${orderCode}\n- Số điện thoại tra cứu: ${userPhone}\n- Tổng tiền: ${totalAmount.toLocaleString('vi-VN')}₫\n\nFlorist Bloomora Buôn Ma Thuột đã tiếp nhận đơn. Bạn có thể bấm 'Tra Cứu Đơn' trên thanh điều hướng để xem ảnh hoa thật Photo Proof ngay khi cắm xong!`);
   };
 
   window.updateCartBadge = function () {
@@ -1280,7 +1374,374 @@
     window.location.reload();
   };
 
-  // 12. TỰ ĐỘNG KHỞI TẠO THEO TRANG ĐANG MỞ
+  // 12. TÍNH NĂNG AI 1: TRỢ LÝ TƯ VẤN CHỌN HOA (CHATBOT AI THEO CSDL HOA ĐẮK LẮK)
+  window.toggleAIChatbot = function () {
+    const win = document.getElementById('aiChatbotWindow');
+    if (!win) return;
+    win.classList.toggle('hidden');
+    if (!win.classList.contains('hidden')) {
+      document.getElementById('aiChatInput')?.focus();
+    }
+  };
+
+  window.quickAIChat = function (occasion, recipient, budget) {
+    const msg = `Tư vấn cho mình mẫu hoa tặng ${recipient} dịp ${occasion} tầm giá ${(budget/1000000).toFixed(1)} triệu`;
+    const input = document.getElementById('aiChatInput');
+    if (input) {
+      input.value = msg;
+      window.handleSendAIChat(new Event('submit'));
+    }
+  };
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  window.handleSendAIChat = async function (e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const input = document.getElementById('aiChatInput');
+    const msg = input?.value.trim();
+    if (!msg) return;
+
+    const chatBox = document.getElementById('aiChatMessages');
+    if (!chatBox) return;
+
+    // Hiển thị tin nhắn người dùng
+    const userBubble = document.createElement('div');
+    userBubble.className = 'flex justify-end';
+    userBubble.innerHTML = `
+      <div class="bg-rose-600 text-white p-3 rounded-2xl rounded-tr-sm max-w-[85%] leading-relaxed shadow-sm">
+        ${escapeHtml(msg)}
+      </div>
+    `;
+    chatBox.appendChild(userBubble);
+    input.value = '';
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    // Loading indicator từ AI
+    const loadingId = 'aiLoading_' + Date.now();
+    const loadingBubble = document.createElement('div');
+    loadingBubble.id = loadingId;
+    loadingBubble.className = 'flex items-start space-x-2';
+    loadingBubble.innerHTML = `
+      <div class="w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center text-xs flex-shrink-0 mt-0.5 animate-pulse">
+        <i class="ph-bold ph-sparkle"></i>
+      </div>
+      <div class="bg-stone-100 text-stone-500 p-3 rounded-2xl rounded-tl-sm max-w-[85%] text-xs flex items-center space-x-2">
+        <i class="ph-bold ph-spinner animate-spin"></i>
+        <span>AI đang tra cứu CSDL hoa Đắk Lắk...</span>
+      </div>
+    `;
+    chatBox.appendChild(loadingBubble);
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    try {
+      // Gọi API Backend PHP (api/ai/consult.php)
+      const res = await fetch('../php/api/ai/consult.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, occasion: '', recipient: '', budget: 0 })
+      });
+      const data = await res.json();
+      document.getElementById(loadingId)?.remove();
+
+      if (data && data.success) {
+        let productCardsHtml = '';
+        if (data.products && data.products.length > 0) {
+          productCardsHtml = `
+            <div class="mt-2.5 space-y-2">
+              <span class="text-[10px] font-bold text-stone-500 uppercase block">Gợi ý từ CSDL Bloomora:</span>
+              ${data.products.map(p => `
+                <div class="bg-white border border-stone-200 rounded-xl p-2 flex items-center justify-between gap-2 shadow-xs">
+                  <img src="${p.image}" class="w-11 h-11 rounded-lg object-cover flex-shrink-0" alt="${p.name}">
+                  <div class="flex-1 min-w-0 text-left">
+                    <div class="font-bold text-stone-800 text-[11px] truncate">${p.name}</div>
+                    <div class="text-rose-600 font-extrabold text-xs">${parseInt(p.price, 10).toLocaleString('vi-VN')}₫</div>
+                  </div>
+                  <button onclick="window.openQuickOrderModal(${p.id}); window.toggleAIChatbot();" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold px-2 py-1.5 rounded-lg text-[10px] transition cursor-pointer flex-shrink-0">
+                    Đặt Ngay
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+
+        const aiBubble = document.createElement('div');
+        aiBubble.className = 'flex items-start space-x-2';
+        aiBubble.innerHTML = `
+          <div class="w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+            <i class="ph-bold ph-sparkle"></i>
+          </div>
+          <div class="bg-stone-100 text-stone-800 p-3 rounded-2xl rounded-tl-sm max-w-[85%] leading-relaxed shadow-sm">
+            <div>${data.message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')}</div>
+            ${productCardsHtml}
+          </div>
+        `;
+        chatBox.appendChild(aiBubble);
+      }
+    } catch (err) {
+      document.getElementById(loadingId)?.remove();
+      // Heuristic fallback nếu chạy file:// không qua server
+      const localProducts = window.BloomoraAdmin.getProducts();
+      const topP = localProducts[0];
+      const aiBubble = document.createElement('div');
+      aiBubble.className = 'flex items-start space-x-2';
+      aiBubble.innerHTML = `
+        <div class="w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+          <i class="ph-bold ph-sparkle"></i>
+        </div>
+        <div class="bg-stone-100 text-stone-800 p-3 rounded-2xl rounded-tl-sm max-w-[85%] leading-relaxed shadow-sm">
+          <div>Dạ em gợi ý bạn mẫu <strong>${topP.name}</strong> (${topP.price.toLocaleString('vi-VN')}₫) đang rất được chuộng tại Buôn Ma Thuột. Tiệm cam kết chụp ảnh hoa thật gửi bạn duyệt trước khi giao! 🌸</div>
+          <div class="mt-2.5">
+            <div class="bg-white border border-stone-200 rounded-xl p-2 flex items-center justify-between gap-2 shadow-xs">
+              <img src="${topP.image}" class="w-11 h-11 rounded-lg object-cover flex-shrink-0" alt="${topP.name}">
+              <div class="flex-1 min-w-0 text-left">
+                <div class="font-bold text-stone-800 text-[11px] truncate">${topP.name}</div>
+                <div class="text-rose-600 font-extrabold text-xs">${topP.price.toLocaleString('vi-VN')}₫</div>
+              </div>
+              <button onclick="window.openQuickOrderModal(${topP.id}); window.toggleAIChatbot();" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold px-2 py-1.5 rounded-lg text-[10px] transition cursor-pointer flex-shrink-0">
+                Đặt Ngay
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      chatBox.appendChild(aiBubble);
+    }
+
+    chatBox.scrollTop = chatBox.scrollHeight;
+  };
+
+  // 13. TÍNH NĂNG AI 2: GỢI Ý LỜI CHÚC CHO THIỆP & BĂNG RÔN (LIVE PREVIEW)
+  window.toggleAIWishesPanel = function () {
+    const box = document.getElementById('aiWishesBox');
+    if (!box) return;
+    box.classList.toggle('hidden');
+    if (!box.classList.contains('hidden')) {
+      window.generateAIWishes();
+    }
+  };
+
+  window.generateAIWishes = async function () {
+    const occasion = document.getElementById('aiWishOccasion')?.value || 'Khai Trương';
+    const tone = document.getElementById('aiWishTone')?.value || 'trang_trong';
+    const listEl = document.getElementById('aiWishList');
+    if (!listEl) return;
+
+    listEl.innerHTML = '<div class="text-[11px] text-stone-400 py-1 flex items-center space-x-1"><i class="ph-bold ph-spinner animate-spin"></i><span>AI đang sáng tạo lời chúc...</span></div>';
+
+    try {
+      const res = await fetch('../php/api/ai/wishes.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ occasion: occasion, tone: tone, format: 'ribbon' })
+      });
+      const data = await res.json();
+      if (data && data.success && data.wishes) {
+        listEl.innerHTML = data.wishes.map((w) => `
+          <div onclick="window.applyAIWish('${w.replace(/'/g, "\\'")}')" class="bg-white hover:bg-rose-50 hover:border-rose-300 border border-stone-200/90 rounded-xl p-2 cursor-pointer transition flex items-center justify-between text-xs group">
+            <span class="font-bold text-stone-800 group-hover:text-rose-600 text-[11px] leading-tight">${w}</span>
+            <span class="text-[10px] bg-stone-100 group-hover:bg-rose-200 text-stone-600 group-hover:text-rose-800 font-bold px-2 py-0.5 rounded-lg ml-2 flex-shrink-0 transition">Chọn mẫu này</span>
+          </div>
+        `).join('');
+        return;
+      }
+    } catch (e) {}
+
+    // Fallback nếu chạy file:// không qua HTTP server
+    const fallbacks = [
+      'CHÚC MỪNG KHAI TRƯƠNG HỒNG PHÁT',
+      'ĐẠI CÁT ĐẠI LỢI - VẠN SỰ HANH THÔNG',
+      'PHÁT TÀI PHÁT LỘC - MUA MAY BÁN ĐẮT'
+    ];
+    listEl.innerHTML = fallbacks.map(w => `
+      <div onclick="window.applyAIWish('${w}')" class="bg-white hover:bg-rose-50 hover:border-rose-300 border border-stone-200/90 rounded-xl p-2 cursor-pointer transition flex items-center justify-between text-xs group">
+        <span class="font-bold text-stone-800 group-hover:text-rose-600 text-[11px] leading-tight">${w}</span>
+        <span class="text-[10px] bg-stone-100 group-hover:bg-rose-200 text-stone-600 group-hover:text-rose-800 font-bold px-2 py-0.5 rounded-lg ml-2 flex-shrink-0 transition">Chọn mẫu này</span>
+      </div>
+    `).join('');
+  };
+
+  window.applyAIWish = function (text) {
+    const input = document.getElementById('modalRibbonText');
+    if (input) {
+      input.value = text;
+      // Cập nhật Live Preview chữ vàng trên băng rôn đỏ
+      const preview = document.getElementById('liveRibbonPreview');
+      if (preview) {
+        preview.textContent = text || 'NỘI DUNG BĂNG RÔN IN VI TÍNH';
+      }
+      window.toggleAIWishesPanel();
+    }
+  };
+
+  // 14. TÍNH NĂNG TRA CỨU ĐƠN HÀNG (MÃ ĐƠN + SỐ ĐIỆN THOẠI) & DUYỆT ẢNH THẬT
+  let currentTrackedOrder = null;
+
+  window.openTrackOrderModal = function () {
+    document.getElementById('trackOrderModal')?.classList.remove('hidden');
+    document.getElementById('trackResultBox')?.classList.add('hidden');
+  };
+
+  window.closeTrackOrderModal = function () {
+    document.getElementById('trackOrderModal')?.classList.add('hidden');
+    currentTrackedOrder = null;
+  };
+
+  window.handleTrackOrder = function (e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const code = document.getElementById('trackOrderCode')?.value.trim().toUpperCase();
+    const phone = document.getElementById('trackOrderPhone')?.value.trim();
+
+    if (!code || !phone) {
+      alert('Vui lòng nhập cả Mã đơn hàng và Số điện thoại người đặt!');
+      return;
+    }
+
+    const orders = window.BloomoraAdmin.getOrders();
+    const order = orders.find(o => o.code === code);
+
+    if (!order) {
+      alert(`Không tìm thấy đơn hàng mã ${code}. Quý khách vui lòng kiểm tra lại!`);
+      return;
+    }
+
+    // Bảo mật: Yêu cầu khớp số điện thoại
+    if (order.phone && order.phone !== phone) {
+      alert('⛔ BẢO MẬT: Số điện thoại không khớp với thông tin đặt đơn này! Vui lòng kiểm tra lại số điện thoại người đặt.');
+      return;
+    }
+
+    currentTrackedOrder = order;
+    const resBox = document.getElementById('trackResultBox');
+    if (!resBox) return;
+
+    resBox.classList.remove('hidden');
+    document.getElementById('trackResultCode').textContent = order.code;
+    document.getElementById('trackResultFlowerName').textContent = order.flower;
+    document.getElementById('trackResultAddress').textContent = order.address || '120 Phan Chu Trinh, P. Thắng Lợi, TP. Buôn Ma Thuột';
+    document.getElementById('trackResultSlot').textContent = order.slot;
+
+    const payBadge = document.getElementById('trackResultPayBadge');
+    if (payBadge) {
+      if (order.paymentStatus === 'paid') {
+        payBadge.className = 'bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full text-[10px]';
+        payBadge.textContent = 'Đã thanh toán VietQR (Đã đối soát)';
+      } else {
+        payBadge.className = 'bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full text-[10px]';
+        payBadge.textContent = 'Chờ xác nhận thanh toán VietQR';
+      }
+    }
+
+    // Cập nhật 5 dots tiến độ
+    const stepDots = [
+      document.getElementById('step1Dot'),
+      document.getElementById('step2Dot'),
+      document.getElementById('step3Dot'),
+      document.getElementById('step4Dot'),
+      document.getElementById('step5Dot')
+    ];
+
+    let currentStep = 1;
+    if (order.status === 'received') currentStep = 1;
+    else if (order.status === 'preparing') currentStep = 2;
+    else if (order.status === 'photo_ready') currentStep = 3;
+    else if (order.status === 'delivering') currentStep = 4;
+    else if (order.status === 'completed') currentStep = 5;
+
+    stepDots.forEach((dot, idx) => {
+      if (!dot) return;
+      if (idx + 1 < currentStep) {
+        dot.className = 'p-2 rounded-xl bg-emerald-100 text-emerald-800 font-bold';
+      } else if (idx + 1 === currentStep) {
+        dot.className = 'p-2 rounded-xl bg-amber-100 text-amber-800 font-bold ring-2 ring-amber-400';
+      } else {
+        dot.className = 'p-2 rounded-xl bg-stone-100 text-stone-400 font-semibold';
+      }
+    });
+
+    // Khối Photo Proof
+    const photoBox = document.getElementById('trackPhotoProofBox');
+    const photoImg = document.getElementById('trackPhotoImg');
+    const photoStatusBadge = document.getElementById('photoStatusBadge');
+    const photoBtns = document.getElementById('photoActionButtons');
+
+    if (order.photo) {
+      photoBox?.classList.remove('hidden');
+      if (photoImg) photoImg.src = order.photo;
+
+      if (order.photoStatus === 'approved') {
+        if (photoStatusBadge) {
+          photoStatusBadge.className = 'text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full';
+          photoStatusBadge.textContent = 'Đã duyệt ảnh - Đang giao hoa';
+        }
+        photoBtns?.classList.add('hidden');
+      } else {
+        if (photoStatusBadge) {
+          photoStatusBadge.className = 'text-[10px] bg-amber-500 text-white font-bold px-2 py-0.5 rounded-full';
+          photoStatusBadge.textContent = 'Chờ bạn duyệt ảnh hoa thật';
+        }
+        photoBtns?.classList.remove('hidden');
+      }
+    } else {
+      photoBox?.classList.add('hidden');
+    }
+  };
+
+  window.approvePhotoProof = function () {
+    if (!currentTrackedOrder) return;
+    currentTrackedOrder.photoStatus = 'approved';
+    currentTrackedOrder.status = 'delivering';
+    currentTrackedOrder.statusText = '4. Đang Giao Hàng';
+
+    const orders = window.BloomoraAdmin.getOrders();
+    const idx = orders.findIndex(o => o.code === currentTrackedOrder.code);
+    if (idx !== -1) orders[idx] = currentTrackedOrder;
+    localStorage.setItem('bloomora_orders', JSON.stringify(orders));
+
+    alert('✅ CẢM ƠN BẠN ĐÃ DUYỆT ẢNH HOA!\n\nFlorist Bloomora đã ghi nhận bạn hài lòng với mẫu hoa cắm thật. Shipper của tiệm bắt đầu xuất phát giao đến người nhận ngay bây giờ!');
+    window.handleTrackOrder();
+  };
+
+  window.requestPhotoRevision = function () {
+    if (!currentTrackedOrder) return;
+    const note = prompt('Vui lòng nhập chi tiết yêu cầu chỉnh sửa (Ví dụ: Thêm chút hoa bi trắng, đổi sang nơ đỏ tươi...):', 'Cần thêm hoa bi trắng viền xung quanh');
+    if (!note) return;
+
+    currentTrackedOrder.photoStatus = 'revision_requested';
+    currentTrackedOrder.note = 'Khách yêu cầu chỉnh sửa: ' + note;
+
+    const orders = window.BloomoraAdmin.getOrders();
+    const idx = orders.findIndex(o => o.code === currentTrackedOrder.code);
+    if (idx !== -1) orders[idx] = currentTrackedOrder;
+    localStorage.setItem('bloomora_orders', JSON.stringify(orders));
+
+    alert('📝 ĐÃ GỬI YÊU CẦU CHỈNH SỬA ĐẾN FLORIST!\n\nNghệ nhân Florist tại xưởng Buôn Ma Thuột đang tiến hành điều chỉnh mẫu hoa theo ghi chú của bạn và sẽ chụp lại ảnh mới.');
+    window.handleTrackOrder();
+  };
+
+  // 15. TÍNH NĂNG ĐỐI SOÁT XÁC NHẬN THANH TOÁN VIETQR CHO ADMIN
+  window.confirmOrderPayment = function (code) {
+    if (!confirm(`Xác nhận đã nhận tiền chuyển khoản cho đơn hàng ${code}?`)) return;
+
+    const orders = window.BloomoraAdmin.getOrders();
+    const order = orders.find(o => o.code === code);
+    if (order) {
+      order.paymentStatus = 'paid';
+      if (order.status === 'received') {
+        order.status = 'preparing';
+        order.statusText = '2. Đang Cắm Hoa';
+      }
+      localStorage.setItem('bloomora_orders', JSON.stringify(orders));
+      window.renderOrdersTable();
+      alert(`Đã xác nhận thanh toán thành công cho đơn ${code}! Đơn hàng tự động chuyển sang ca thợ cắm hoa.`);
+    }
+  };
+
+  // 16. TỰ ĐỘNG KHỞI TẠO THEO TRANG ĐANG MỞ
   document.addEventListener('DOMContentLoaded', () => {
     // Trang Chủ: Khởi tạo lưới sản phẩm Wish Florist & Giỏ hàng
     if (document.getElementById('catalogGrid')) {
