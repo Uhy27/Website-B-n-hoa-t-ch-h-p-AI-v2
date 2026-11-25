@@ -1,0 +1,127 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/config/helpers.php';
+init_secure_session();
+
+$registeredName = $_SESSION['registered_name'] ?? 'Bạn Mới';
+unset($_SESSION['registered_name']);
+?>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloomora · Đăng ký thành công</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    body { font-family: 'Be Vietnam Pro', sans-serif; }
+    .font-serif-title { font-family: 'Playfair Display', Georgia, serif; }
+    .fade-up {
+      animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+  </style>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            rose: {
+              50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3',
+              500: '#f43f5e', 600: '#e11d48', 700: '#be123c', 800: '#9f1239', 900: '#881337',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="bg-gradient-to-br from-rose-50/70 via-stone-50 to-stone-100 text-stone-800 antialiased min-h-screen flex flex-col justify-between p-4 sm:p-6">
+
+  <!-- Top bar -->
+  <div class="max-w-md w-full mx-auto flex items-center justify-between pb-4">
+    <a href="index.php" class="inline-flex items-center space-x-1.5 text-xs font-semibold text-stone-600 hover:text-rose-600 bg-white/80 hover:bg-white px-3.5 py-1.5 rounded-full border border-stone-200 shadow-sm transition">
+      <i class="ph ph-arrow-left text-sm"></i>
+      <span>Về trang chủ</span>
+    </a>
+    <div class="flex items-center space-x-1.5 text-xs text-stone-500 font-medium">
+      <i class="ph ph-shield-check text-emerald-600 text-base"></i>
+      <span>Bảo mật an toàn</span>
+    </div>
+  </div>
+
+  <!-- Card Thành Công Chuẩn 100% Theo Ảnh Mẫu -->
+  <main class="max-w-md w-full mx-auto bg-white rounded-3xl p-7 sm:p-9 border border-stone-200 shadow-2xl shadow-rose-950/5 text-center space-y-6 fade-up">
+    
+    <!-- Logo Bloomora -->
+    <div class="flex items-center justify-center space-x-2.5">
+      <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-700 to-rose-500 flex items-center justify-center text-white shadow-md shadow-rose-600/30">
+        <i class="ph ph-flower-lotus text-2xl"></i>
+      </div>
+      <span class="font-serif-title text-2xl font-bold tracking-tight text-stone-900">BLOOMORA</span>
+    </div>
+
+    <!-- Icon Tích Tròn Đỏ Hồng Phát Sáng -->
+    <div class="pt-2">
+      <div class="w-16 h-16 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mx-auto shadow-inner">
+        <div class="w-11 h-11 rounded-full bg-rose-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-rose-600/40">
+          <i class="ph-bold ph-check"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tiêu đề & Lời chúc mừng -->
+    <div class="space-y-2">
+      <h1 class="text-xl sm:text-2xl font-bold text-stone-900 tracking-tight">Đăng ký thành công!</h1>
+      <p class="text-xs text-stone-500 leading-relaxed max-w-xs mx-auto">
+        Chào mừng <strong><?php echo e($registeredName); ?></strong> đến với Bloomora.<br>Tài khoản của bạn đã sẵn sàng để đặt hoa.
+      </p>
+    </div>
+
+    <!-- Khối Thông Tin Đặc Quyền Thành Viên -->
+    <div class="bg-stone-50/80 rounded-2xl p-4 sm:p-5 border border-stone-100 text-center space-y-1.5">
+      <h3 class="text-xs font-bold text-stone-800">Mỗi dịp đặc biệt, luôn có Bloomora</h3>
+      <p class="text-[11px] text-stone-500 leading-relaxed">
+        Lưu địa chỉ giao hoa, theo dõi đơn hàng và nhận ưu đãi dành riêng cho thành viên.
+      </p>
+    </div>
+
+    <!-- Các Nút Hành Động -->
+    <div class="space-y-3 pt-2">
+      <!-- Nút chính: Khám phá hoa ngay -->
+      <a 
+        href="index.php" 
+        class="block w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm py-3.5 rounded-2xl shadow-lg shadow-rose-600/30 transition hover:scale-[1.01] active:scale-[0.99]"
+      >
+        Khám phá hoa ngay
+      </a>
+
+      <!-- Nút phụ: Đi đến tài khoản của tôi -->
+      <a 
+        href="login.php" 
+        class="block text-xs font-medium text-stone-500 hover:text-stone-800 transition py-1"
+      >
+        Đi đến tài khoản của tôi
+      </a>
+    </div>
+
+  </main>
+
+  <footer class="text-center text-[11px] text-stone-400 py-4">
+    Bloomora Floral E-Commerce &copy; 2026. Môi trường PHP 8.0+.
+  </footer>
+
+</body>
+</html>

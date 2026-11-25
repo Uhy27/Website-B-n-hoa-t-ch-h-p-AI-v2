@@ -168,8 +168,9 @@
 
     function handleLogin(e) {
       e.preventDefault();
-      const user = document.getElementById('loginIdentifier').value;
-      alert(`Đăng nhập thành công với tài khoản: ${user}!`);
+      const user = document.getElementById('loginIdentifier').value.trim() || 'Thành Viên';
+      localStorage.setItem('bloomora_user', user);
+      // Chuyển thẳng vào trang chủ không cần thông báo
       window.location.href = 'index.html';
     }
   </script>
