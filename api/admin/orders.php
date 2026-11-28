@@ -106,7 +106,7 @@ try {
             SELECT o.id, o.order_code, o.user_id, o.sender_name, o.sender_phone, o.is_anonymous,
                    o.receiver_name, o.receiver_phone, o.receiver_address, o.city,
                    o.delivery_date, o.delivery_time_slot, o.card_message, o.ribbon_message,
-                   o.subtotal, o.shipping_fee, o.discount_amount, o.total_amount, 
+                   o.voucher_code, o.subtotal, o.shipping_fee, o.discount_amount, o.total_amount, 
                    o.payment_method, o.payment_status, o.order_status, o.photo_proof, o.created_at,
                    o.assigned_florist_id, o.assigned_shipper_id,
                    u_f.full_name AS florist_name, u_s.full_name AS shipper_name
@@ -204,14 +204,8 @@ try {
 
             // Hoàn lại voucher nếu đã áp dụng
             try {
-                $vu = $pdo->prepare("SELECT vu.id, vu.voucher_id, vu.discount_amount, v.campaign_id FROM voucher_usages vu LEFT JOIN vouchers v ON v.id = vu.voucher_id WHERE vu.order_id = :oid AND vu.status = 'used'");
-                $vu->execute([':oid' => $orderId]);
-                foreach ($vu->fetchAll(PDO::FETCH_ASSOC) as $u) {
-                    $pdo->prepare("UPDATE voucher_usages SET status = 'refunded' WHERE id = :id")->execute([':id' => $u['id']]);
-                    $pdo->prepare("UPDATE vouchers SET used_count = GREATEST(used_count - 1, 0) WHERE id = :vid")->execute([':vid' => $u['voucher_id']]);
-                    if (!empty($u['campaign_id']) && class_exists('BudgetService')) {
-                        BudgetService::refundBudget($pdo, (int)$u['campaign_id'], $orderId, (float)$u['discount_amount']);
-                    }
+                if (class_exists('PromotionService')) {
+                    PromotionService::refundVoucherForOrder($pdo, $orderId);
                 }
             } catch (Throwable $ignore) {}
         }

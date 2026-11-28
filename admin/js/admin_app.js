@@ -46,6 +46,71 @@ function formatMoney(amount) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Number(amount) || 0);
 }
 
+function showAdminToast(message, type = 'success') {
+  let box = document.getElementById('adminToastContainer');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'adminToastContainer';
+    box.className = 'fixed top-5 right-5 z-[90] flex flex-col items-end space-y-2 pointer-events-none';
+    document.body.appendChild(box);
+  }
+  const el = document.createElement('div');
+  const styles = type === 'error'
+    ? 'bg-rose-600 text-white'
+    : type === 'warning'
+      ? 'bg-amber-600 text-white'
+      : 'bg-stone-900 text-white';
+  const icon = type === 'error' ? 'ph-x-circle' : type === 'warning' ? 'ph-warning-circle' : 'ph-check-circle';
+  el.className = `pointer-events-auto px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold flex items-center gap-2 max-w-sm ${styles}`;
+  el.innerHTML = `<i class="ph-fill ${icon} text-base flex-shrink-0"></i><span>${escapeHtml(message)}</span>`;
+  box.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 0.25s ease';
+    setTimeout(() => el.remove(), 260);
+  }, 3400);
+}
+
+function showFormAlert(elId, message, isError = true) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!message) {
+    el.classList.add('hidden');
+    el.textContent = '';
+    return;
+  }
+  el.className = isError
+    ? 'mb-3 p-3 rounded-xl text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700 block'
+    : 'mb-3 p-3 rounded-xl text-xs font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 block';
+  el.textContent = message;
+}
+
+function slugifyVietnamese(text) {
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/[\s-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function formatDateVN(dtStr) {
+  if (!dtStr) return '--';
+  const s = String(dtStr).replace(' ', 'T');
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return String(dtStr);
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function toDatetimeLocalValue(dtStr) {
+  if (!dtStr) return '';
+  return String(dtStr).trim().replace(' ', 'T').slice(0, 16);
+}
+
 // Sidebar toggle for mobile
 function toggleSidebar() {
   const sb = document.getElementById('adminSidebar');
@@ -155,13 +220,13 @@ function dispatchViewLoader(viewName) {
       loadAdminProducts();
       break;
     case 'categories':
-      loadAdminCategories();
+      loadAdminCategories(1);
       break;
     case 'inventory':
       loadMaterialsList();
       break;
     case 'promotions':
-      loadAdminVouchers();
+      loadAdminPromotions(1);
       break;
     case 'reviews':
       loadAdminReviews(1);
@@ -606,7 +671,7 @@ async function openOrderDetailModal(orderId) {
               <td class="py-2 px-3 text-right">${formatMoney(o.shipping_fee)}</td>
             </tr>
             <tr>
-              <td colspan="3" class="py-2 px-3 text-right text-rose-600">Giảm giá voucher:</td>
+              <td colspan="3" class="py-2 px-3 text-right text-rose-600">Giảm giá voucher${o.voucher_code ? ` (<span class="font-mono font-bold">${escapeHtml(o.voucher_code)}</span>)` : ''}:</td>
               <td class="py-2 px-3 text-right text-rose-600">-${formatMoney(o.discount_amount)}</td>
             </tr>
             <tr class="text-base font-bold text-stone-900">
@@ -1448,25 +1513,49 @@ async function handleDeleteProduct(id, name) {
 }
 
 // ==========================================================================
-// 6. CATEGORIES MODULE
+// 6. CATEGORIES MODULE (Full CRUD, View Detail, Hide/Show, Safe Delete)
 // ==========================================================================
-async function loadAdminCategories() {
+let currentCategoriesPage = 1;
+let allCategoriesCache = [];
+
+async function loadAdminCategories(page = 1) {
+  currentCategoriesPage = page;
+  const search = document.getElementById('catSearchInput')?.value.trim() || '';
+  const status = document.getElementById('catStatusFilter')?.value || 'all';
+  const sort = document.getElementById('catSortFilter')?.value || 'order_asc';
   const tbody = document.getElementById('categoriesTableBody');
-  if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center py-10 text-stone-400">Đang tải danh mục...</td></tr>`;
+  if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-10 text-stone-400">Đang tải danh mục sản phẩm...</td></tr>`;
 
   try {
-    const res = await fetch('../api/admin/categories.php');
+    const q = new URLSearchParams({ search, status, sort, page, limit: 15 });
+    const [res, allRes] = await Promise.all([
+      fetch(`../api/admin/categories.php?${q.toString()}`),
+      fetch('../api/admin/categories.php?all=1')
+    ]);
     if (res.status === 401) { window.location.href = 'login.php'; return; }
     const json = await res.json();
+    const allJson = await allRes.json().catch(() => ({ success: false }));
+    if (allJson.success) {
+      allCategoriesCache = allJson.data || [];
+    }
 
     if (json.success) {
       currentCategories = json.data || [];
+      if (json.stats) {
+        const stTot = document.getElementById('catStatTotal');
+        const stAct = document.getElementById('catStatActive');
+        const stHid = document.getElementById('catStatHidden');
+        if (stTot) stTot.textContent = json.stats.total ?? currentCategories.length;
+        if (stAct) stAct.textContent = json.stats.active ?? 0;
+        if (stHid) stHid.textContent = json.stats.hidden ?? 0;
+      }
       renderCategoriesTable(currentCategories);
+      renderCategoriesPagination(json.pagination);
     } else {
-      if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-rose-500">${escapeHtml(json.message)}</td></tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-rose-500">${escapeHtml(json.message)}</td></tr>`;
     }
   } catch (err) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-rose-500">Lỗi kết nối danh mục.</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-rose-500">Lỗi kết nối danh mục.</td></tr>`;
   }
 }
 
@@ -1475,35 +1564,53 @@ function renderCategoriesTable(categories) {
   if (!tbody) return;
 
   if (categories.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-stone-400">Chưa có danh mục hoa nào.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-stone-400">Không tìm thấy danh mục nào phù hợp.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = categories.map(c => {
+    const isVisible = c.status === 'active' && Number(c.is_active) === 1;
+    const imgHtml = c.image
+      ? `<img src="${escapeHtml(c.image)}" alt="${escapeHtml(c.name)}" onclick="openAdminLightbox('${escapeHtml(c.image)}')" class="w-11 h-11 rounded-xl object-cover border border-stone-200 cursor-pointer shadow-xs" />`
+      : `<div class="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg border border-rose-100"><i class="ph ${escapeHtml(c.icon || 'ph-flower-lotus')}"></i></div>`;
+
     return `
-      <tr class="hover:bg-stone-50 transition">
-        <td class="py-3 px-4 font-mono text-stone-500">${c.display_order}</td>
-        <td class="py-3 px-4">
-          <div class="flex items-center space-x-2.5">
-            <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-lg">
-              <i class="ph ${escapeHtml(c.icon || 'ph-flower-lotus')}"></i>
-            </div>
-            <span class="font-bold text-stone-900">${escapeHtml(c.name)}</span>
+      <tr class="hover:bg-stone-50 transition ${!isVisible ? 'opacity-75 bg-stone-50/40' : ''}">
+        <td class="py-3 px-4">${imgHtml}</td>
+        <td class="py-3 px-4 max-w-xs">
+          <div class="flex items-center flex-wrap gap-1.5">
+            <button onclick="openCategoryDetailModal(${c.id})" class="font-bold text-stone-900 hover:text-rose-600 transition text-left">${escapeHtml(c.name)}</button>
+            ${c.badge ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">${escapeHtml(c.badge)}</span>` : ''}
           </div>
+          <div class="text-[11px] text-stone-400 font-mono truncate">${escapeHtml(c.slug)}</div>
+          ${c.parent_name ? `<div class="text-[10px] text-purple-600 font-medium mt-0.5"><i class="ph ph-git-branch mr-0.5"></i>Thuộc: ${escapeHtml(c.parent_name)}</div>` : ''}
         </td>
-        <td class="py-3 px-4 font-mono text-stone-600">${escapeHtml(c.slug)}</td>
+        <td class="py-3 px-4 font-mono font-semibold text-stone-700">${escapeHtml(c.code || ('DM' + String(c.id).padStart(3, '0')))}</td>
         <td class="py-3 px-4">
-          ${c.badge ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">${escapeHtml(c.badge)}</span>` : '<span class="text-stone-300 italic">Không có</span>'}
+          <button onclick="openCategoryDetailModal(${c.id})" class="font-bold font-mono text-stone-900 hover:text-rose-600 underline decoration-dotted">
+            ${c.product_count || 0} sản phẩm
+          </button>
+          <span class="block text-[10px] text-stone-400">${c.active_product_count ?? c.product_count ?? 0} đang bán</span>
         </td>
-        <td class="py-3 px-4 font-bold font-mono text-stone-900">${c.product_count || 0} mẫu</td>
+        <td class="py-3 px-4 text-center font-mono text-stone-600 font-semibold">${c.display_order}</td>
         <td class="py-3 px-4">
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${c.is_active == 1 ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-500'}">
-            ${c.is_active == 1 ? 'Hoạt động' : 'Tạm tắt'}
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${isVisible ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'}">
+            ${isVisible ? 'Hiển thị' : 'Đang ẩn'}
           </span>
         </td>
+        <td class="py-3 px-4 text-[11px] font-mono text-stone-500 whitespace-nowrap">${escapeHtml(formatDateVN(c.created_at))}</td>
         <td class="py-3 px-4 text-right whitespace-nowrap space-x-1">
-          <button onclick="openCategoryModal(${c.id})" class="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition" title="Sửa">
+          <button onclick="openCategoryDetailModal(${c.id})" class="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition" title="Xem chi tiết">
+            <i class="ph ph-eye text-sm"></i>
+          </button>
+          <button onclick="openCategoryModal(${c.id})" class="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition" title="Chỉnh sửa">
             <i class="ph ph-pencil-simple text-sm"></i>
+          </button>
+          <button onclick="handleToggleCategoryVisibility(${c.id}, '${isVisible ? 'active' : 'hidden'}')" class="p-1.5 ${isVisible ? 'bg-amber-50 hover:bg-amber-100 text-amber-700' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'} rounded-lg transition" title="${isVisible ? 'Ẩn danh mục khỏi Client' : 'Hiện lại danh mục'}">
+            <i class="ph ${isVisible ? 'ph-eye-slash' : 'ph-eye'} text-sm"></i>
+          </button>
+          <button onclick="openCategoryDeleteModal(${c.id})" class="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition" title="Xóa danh mục">
+            <i class="ph ph-trash text-sm"></i>
           </button>
         </td>
       </tr>
@@ -1511,28 +1618,85 @@ function renderCategoriesTable(categories) {
   }).join('');
 }
 
+function renderCategoriesPagination(pagination) {
+  const wrap = document.getElementById('categoriesPagination');
+  if (!wrap || !pagination) return;
+  const { total, page, total_pages } = pagination;
+  wrap.innerHTML = `
+    <span>Hiển thị trang <strong>${page}</strong> / ${total_pages} (Tổng <strong>${total}</strong> danh mục)</span>
+    <div class="flex items-center gap-1.5">
+      <button ${page <= 1 ? 'disabled' : ''} onclick="loadAdminCategories(${page - 1})" class="px-3 py-1 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 disabled:opacity-40">Trước</button>
+      <button ${page >= total_pages ? 'disabled' : ''} onclick="loadAdminCategories(${page + 1})" class="px-3 py-1 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 disabled:opacity-40">Sau</button>
+    </div>
+  `;
+}
+
+function populateCategoryParentSelect(excludeId = null, selectedParentId = null) {
+  const sel = document.getElementById('catParentId');
+  if (!sel) return;
+  const list = (allCategoriesCache.length ? allCategoriesCache : currentCategories).filter(c => c.id != excludeId);
+  sel.innerHTML = `<option value="">-- Danh mục gốc (Không có cha) --</option>` +
+    list.map(c => `<option value="${c.id}" ${selectedParentId == c.id ? 'selected' : ''}>${escapeHtml(c.name)} (${escapeHtml(c.code || '')})</option>`).join('');
+}
+
+function onCategoryNameInput() {
+  const slugInput = document.getElementById('catSlug');
+  const nameVal = document.getElementById('catName')?.value || '';
+  if (slugInput && slugInput.dataset.manual !== '1') {
+    slugInput.value = slugifyVietnamese(nameVal);
+  }
+}
+
+function previewCategoryImage(url) {
+  const img = document.getElementById('catImagePreview');
+  if (!img) return;
+  if (url && url.trim()) {
+    img.src = url.trim();
+    img.classList.remove('hidden');
+  } else {
+    img.src = '';
+    img.classList.add('hidden');
+  }
+}
+
 function openCategoryModal(catId = null) {
   const modal = document.getElementById('categoryModal');
   const title = document.getElementById('catModalTitle');
+  const slugEl = document.getElementById('catSlug');
+  showFormAlert('catFormAlert', '');
 
   if (catId) {
-    const c = currentCategories.find(x => x.id == catId);
+    const c = (allCategoriesCache.find(x => x.id == catId) || currentCategories.find(x => x.id == catId));
     if (!c) return;
-    title.textContent = `Sửa Danh Mục: ${c.name}`;
+    title.textContent = `Chỉnh Sửa Danh Mục: ${c.name}`;
     document.getElementById('catEditId').value = c.id;
-    document.getElementById('catName').value = c.name;
-    document.getElementById('catSlug').value = c.slug;
+    document.getElementById('catName').value = c.name || '';
+    document.getElementById('catCode').value = c.code || '';
+    slugEl.value = c.slug || '';
+    slugEl.dataset.manual = '1';
+    populateCategoryParentSelect(c.id, c.parent_id);
+    document.getElementById('catDisplayOrder').value = c.display_order ?? 0;
+    document.getElementById('catStatus').value = (c.status === 'hidden' || Number(c.is_active) === 0) ? 'hidden' : 'active';
     document.getElementById('catIcon').value = c.icon || 'ph-flower-lotus';
     document.getElementById('catBadge').value = c.badge || '';
-    document.getElementById('catDisplayOrder').value = c.display_order || 0;
+    document.getElementById('catImage').value = c.image || '';
+    document.getElementById('catDescription').value = c.description || '';
+    previewCategoryImage(c.image || '');
   } else {
     title.textContent = 'Thêm Danh Mục Mới';
     document.getElementById('catEditId').value = '';
     document.getElementById('catName').value = '';
-    document.getElementById('catSlug').value = '';
+    document.getElementById('catCode').value = '';
+    slugEl.value = '';
+    slugEl.dataset.manual = '0';
+    populateCategoryParentSelect(null, null);
+    document.getElementById('catDisplayOrder').value = '0';
+    document.getElementById('catStatus').value = 'active';
     document.getElementById('catIcon').value = 'ph-flower-lotus';
     document.getElementById('catBadge').value = '';
-    document.getElementById('catDisplayOrder').value = '0';
+    document.getElementById('catImage').value = '';
+    document.getElementById('catDescription').value = '';
+    previewCategoryImage('');
   }
 
   modal.classList.remove('hidden');
@@ -1546,14 +1710,35 @@ async function handleCategorySubmit(e) {
   e.preventDefault();
   const id = document.getElementById('catEditId').value;
   const isEdit = id !== '';
+  const name = document.getElementById('catName').value.trim();
+  const slug = document.getElementById('catSlug').value.trim();
+
+  if (!name) {
+    showFormAlert('catFormAlert', 'Vui lòng nhập Tên danh mục.');
+    return;
+  }
+  if (!slug) {
+    showFormAlert('catFormAlert', 'Slug đường dẫn SEO không được để trống.');
+    return;
+  }
+
   const payload = {
-    name: document.getElementById('catName').value.trim(),
-    slug: document.getElementById('catSlug').value.trim(),
-    icon: document.getElementById('catIcon').value.trim(),
+    name,
+    code: document.getElementById('catCode').value.trim(),
+    slug,
+    parent_id: document.getElementById('catParentId').value ? parseInt(document.getElementById('catParentId').value, 10) : null,
+    display_order: parseInt(document.getElementById('catDisplayOrder').value || '0', 10),
+    status: document.getElementById('catStatus').value,
+    icon: document.getElementById('catIcon').value.trim() || 'ph-flower-lotus',
     badge: document.getElementById('catBadge').value.trim(),
-    display_order: parseInt(document.getElementById('catDisplayOrder').value, 10),
-    is_active: 1
+    image: document.getElementById('catImage').value.trim(),
+    description: document.getElementById('catDescription').value.trim(),
   };
+
+  const btn = document.getElementById('catSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Đang lưu...';
+  showFormAlert('catFormAlert', '');
 
   try {
     const url = isEdit ? `../api/admin/categories.php?id=${id}` : '../api/admin/categories.php';
@@ -1565,14 +1750,231 @@ async function handleCategorySubmit(e) {
     });
     const json = await res.json();
     if (json.success) {
-      alert(json.message);
+      showAdminToast(json.message || 'Lưu danh mục thành công!', 'success');
       closeCategoryModal();
-      loadAdminCategories();
+      loadAdminCategories(currentCategoriesPage);
+      loadCategoryDropdown();
     } else {
-      alert('Lỗi: ' + json.message);
+      showFormAlert('catFormAlert', json.message || 'Không thể lưu danh mục.');
     }
   } catch (err) {
-    alert('Lỗi kết nối máy chủ.');
+    showFormAlert('catFormAlert', 'Lỗi kết nối máy chủ khi lưu danh mục.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Lưu Danh Mục';
+  }
+}
+
+async function openCategoryDetailModal(catId) {
+  const modal = document.getElementById('categoryDetailModal');
+  const body = document.getElementById('categoryDetailBody');
+  const sub = document.getElementById('catDetailSubtitle');
+  sub.textContent = 'Đang tải...';
+  body.innerHTML = `<div class="py-10 text-center text-stone-400">Đang tải thông tin chi tiết danh mục...</div>`;
+  modal.classList.remove('hidden');
+
+  try {
+    const res = await fetch(`../api/admin/categories.php?id=${catId}`);
+    const json = await res.json();
+    if (!json.success || !json.data) {
+      body.innerHTML = `<div class="py-6 text-center text-rose-600">${escapeHtml(json.message || 'Không tìm thấy danh mục.')}</div>`;
+      return;
+    }
+
+    const c = json.data;
+    const isVisible = c.status === 'active' && Number(c.is_active) === 1;
+    sub.textContent = `Mã: ${c.code || '--'} • Slug: ${c.slug}`;
+
+    const prodsHtml = (c.products && c.products.length > 0)
+      ? `<table class="w-full text-left text-xs">
+          <thead class="bg-stone-50 text-[11px] text-stone-400 uppercase border-b border-stone-200">
+            <tr>
+              <th class="py-2 px-3">Sản Phẩm</th>
+              <th class="py-2 px-3">SKU</th>
+              <th class="py-2 px-3">Giá Bán</th>
+              <th class="py-2 px-3 text-center">Tồn Kho</th>
+              <th class="py-2 px-3">Trạng Thái</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-stone-100">
+            ${c.products.map(p => `
+              <tr>
+                <td class="py-2 px-3 flex items-center gap-2">
+                  <img src="${escapeHtml(p.thumbnail)}" class="w-8 h-8 rounded-lg object-cover border border-stone-200" />
+                  <span class="font-semibold text-stone-800">${escapeHtml(p.name)}</span>
+                </td>
+                <td class="py-2 px-3 font-mono text-stone-600">${escapeHtml(p.sku)}</td>
+                <td class="py-2 px-3 font-mono font-bold text-rose-600">${formatMoney(p.price)}</td>
+                <td class="py-2 px-3 text-center font-mono">${p.stock_quantity}</td>
+                <td class="py-2 px-3">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${Number(p.is_active) === 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}">
+                    ${Number(p.is_active) === 1 ? 'Đang bán' : 'Tạm ẩn'}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`
+      : `<div class="py-6 text-center text-stone-400 italic">Danh mục này chưa có sản phẩm nào.</div>`;
+
+    body.innerHTML = `
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-stone-50 border border-stone-200">
+        <div class="sm:col-span-1">
+          ${c.image
+            ? `<img src="${escapeHtml(c.image)}" alt="${escapeHtml(c.name)}" class="w-full h-32 rounded-2xl object-cover border border-stone-200" />`
+            : `<div class="w-full h-32 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center text-3xl border border-rose-100"><i class="ph ${escapeHtml(c.icon || 'ph-flower-lotus')}"></i></div>`
+          }
+        </div>
+        <div class="sm:col-span-3 space-y-2">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <h4 class="text-base font-bold text-stone-900 font-serif-title">${escapeHtml(c.name)}</h4>
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${isVisible ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'}">
+              ${isVisible ? 'Hiển thị trên web' : 'Đang ẩn'}
+            </span>
+          </div>
+          <p class="text-stone-600 leading-relaxed">${escapeHtml(c.description || 'Chưa có mô tả cho danh mục này.')}</p>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 text-[11px] text-stone-500">
+            <div>Mã danh mục: <strong class="font-mono text-stone-800">${escapeHtml(c.code || '--')}</strong></div>
+            <div>Slug: <strong class="font-mono text-stone-800">${escapeHtml(c.slug)}</strong></div>
+            <div>Danh mục cha: <strong class="text-stone-800">${escapeHtml(c.parent_name || 'Danh mục gốc')}</strong></div>
+            <div>Thứ tự hiển thị: <strong class="font-mono text-stone-800">${c.display_order}</strong></div>
+            <div>Ngày tạo: <strong class="font-mono text-stone-800">${escapeHtml(formatDateVN(c.created_at))}</strong></div>
+            <div>Cập nhật: <strong class="font-mono text-stone-800">${escapeHtml(formatDateVN(c.updated_at))}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      ${c.children && c.children.length > 0 ? `
+        <div class="p-3 rounded-2xl bg-purple-50/70 border border-purple-100">
+          <span class="font-bold text-purple-900 block mb-1.5">Danh Mục Con (${c.children.length}):</span>
+          <div class="flex flex-wrap gap-1.5">
+            ${c.children.map(ch => `<span class="px-2.5 py-1 bg-white border border-purple-200 rounded-lg text-[11px] font-semibold text-purple-800">${escapeHtml(ch.name)}</span>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="border border-stone-200 rounded-2xl overflow-hidden">
+        <div class="px-4 py-3 bg-stone-50 border-b border-stone-200 flex items-center justify-between">
+          <span class="font-bold text-stone-800">Danh Sách Sản Phẩm Thuộc Danh Mục (${c.product_count} sản phẩm)</span>
+        </div>
+        <div class="max-h-72 overflow-y-auto">${prodsHtml}</div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button onclick="closeCategoryDetailModal(); openCategoryModal(${c.id});" class="px-4 py-2 bg-stone-900 hover:bg-black text-white rounded-xl font-bold transition">Chỉnh Sửa Danh Mục</button>
+      </div>
+    `;
+  } catch (err) {
+    body.innerHTML = `<div class="py-6 text-center text-rose-600">Lỗi tải chi tiết danh mục.</div>`;
+  }
+}
+
+function closeCategoryDetailModal() {
+  document.getElementById('categoryDetailModal').classList.add('hidden');
+}
+
+async function handleToggleCategoryVisibility(id, currentStatus) {
+  const newStatus = currentStatus === 'active' ? 'hidden' : 'active';
+  const msg = newStatus === 'hidden'
+    ? 'Ẩn danh mục này khỏi trang khách hàng? (Các sản phẩm liên kết vẫn giữ nguyên)'
+    : 'Bật hiển thị lại danh mục này trên website?';
+  if (!confirm(msg)) return;
+
+  try {
+    const res = await fetch(`../api/admin/categories.php?id=${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    const json = await res.json();
+    if (json.success) {
+      showAdminToast(json.message, 'success');
+      loadAdminCategories(currentCategoriesPage);
+      loadCategoryDropdown();
+    } else {
+      showAdminToast(json.message || 'Không thể đổi trạng thái danh mục.', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Lỗi kết nối máy chủ.', 'error');
+  }
+}
+
+function openCategoryDeleteModal(catId) {
+  const c = currentCategories.find(x => x.id == catId) || allCategoriesCache.find(x => x.id == catId);
+  if (!c) return;
+  const modal = document.getElementById('categoryDeleteModal');
+  const title = document.getElementById('catDeleteTitle');
+  const body = document.getElementById('catDeleteBody');
+
+  title.textContent = `${c.name} (${c.code || '#' + c.id})`;
+  const count = Number(c.product_count) || 0;
+  const others = (allCategoriesCache.length ? allCategoriesCache : currentCategories).filter(x => x.id != c.id);
+
+  if (count > 0) {
+    body.innerHTML = `
+      <div class="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1.5">
+        <div class="font-bold flex items-center gap-1.5"><i class="ph ph-warning-circle text-base text-amber-600"></i> Không thể xóa trực tiếp</div>
+        <p>Danh mục <strong>"${escapeHtml(c.name)}"</strong> hiện đang có <strong>${count} sản phẩm</strong> liên kết. Hệ thống không cho phép xóa dây chuyền để bảo toàn dữ liệu sản phẩm và đơn hàng.</p>
+      </div>
+
+      ${others.length > 0 ? `
+        <div class="space-y-2">
+          <label class="block font-semibold text-stone-700">Chuyển ${count} sản phẩm sang danh mục khác trước khi xóa:</label>
+          <select id="catDeleteReassignTarget" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-medium focus:outline-none">
+            ${others.map(o => `<option value="${o.id}">${escapeHtml(o.name)} (${escapeHtml(o.code || '')})</option>`).join('')}
+          </select>
+        </div>
+      ` : ''}
+
+      <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-stone-100">
+        <button type="button" onclick="closeCategoryDeleteModal()" class="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl font-medium">Hủy</button>
+        <button type="button" onclick="closeCategoryDeleteModal(); handleToggleCategoryVisibility(${c.id}, 'active');" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold">Ẩn Thay Vì Xóa</button>
+        ${others.length > 0 ? `<button type="button" onclick="confirmCategoryDelete(${c.id}, true)" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold">Chuyển SP & Xóa</button>` : ''}
+      </div>
+    `;
+  } else {
+    body.innerHTML = `
+      <p class="text-stone-600 leading-relaxed">
+        Danh mục <strong>"${escapeHtml(c.name)}"</strong> hiện không có sản phẩm liên kết. Bạn có chắc chắn muốn xóa vĩnh viễn danh mục này?
+      </p>
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+        <button type="button" onclick="closeCategoryDeleteModal()" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl font-medium">Hủy</button>
+        <button type="button" onclick="confirmCategoryDelete(${c.id}, false)" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold">Xác Nhận Xóa</button>
+      </div>
+    `;
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeCategoryDeleteModal() {
+  document.getElementById('categoryDeleteModal').classList.add('hidden');
+}
+
+async function confirmCategoryDelete(catId, withReassign) {
+  let url = `../api/admin/categories.php?id=${catId}`;
+  if (withReassign) {
+    const targetId = document.getElementById('catDeleteReassignTarget')?.value;
+    if (!targetId) {
+      showAdminToast('Vui lòng chọn danh mục đích.', 'warning');
+      return;
+    }
+    url += `&reassign_to_id=${encodeURIComponent(targetId)}`;
+  }
+
+  try {
+    const res = await fetch(url, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.success) {
+      showAdminToast(json.message, 'success');
+      closeCategoryDeleteModal();
+      loadAdminCategories(currentCategoriesPage);
+      loadCategoryDropdown();
+    } else {
+      showAdminToast(json.message || 'Không thể xóa danh mục.', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Lỗi kết nối khi xóa danh mục.', 'error');
   }
 }
 
@@ -1838,112 +2240,471 @@ function promptAdjustProductStock(pid, name) {
 }
 
 // ==========================================================================
-// 8. PROMOTIONS & VOUCHERS MODULE
+// 8. PROMOTIONS & VOUCHERS MODULE (Full Professional Campaign Management)
 // ==========================================================================
+let currentPromotions = [];
+let currentPromotionsPage = 1;
+let promoScopeProductsCache = [];
+let promoCodeCheckTimer = null;
+
+const PROMO_STATUS_META = {
+  draft:     { text: 'Nháp', cls: 'bg-stone-100 text-stone-600' },
+  scheduled: { text: 'Đã lên lịch', cls: 'bg-blue-100 text-blue-800' },
+  active:    { text: 'Đang diễn ra', cls: 'bg-emerald-100 text-emerald-800' },
+  paused:    { text: 'Tạm dừng', cls: 'bg-amber-100 text-amber-800' },
+  ended:     { text: 'Đã kết thúc', cls: 'bg-rose-100 text-rose-700' },
+};
+
 async function loadAdminVouchers() {
+  return loadAdminPromotions(1);
+}
+
+async function loadAdminPromotions(page = 1) {
+  currentPromotionsPage = page;
+  const search = document.getElementById('promoSearchInput')?.value.trim() || '';
+  const status = document.getElementById('promoStatusFilter')?.value || 'all';
+  const discountType = document.getElementById('promoTypeFilter')?.value || 'all';
+  const dateFrom = document.getElementById('promoDateFrom')?.value || '';
+  const dateTo = document.getElementById('promoDateTo')?.value || '';
+  const sort = document.getElementById('promoSortFilter')?.value || 'created_desc';
+
   const tbody = document.getElementById('vouchersTableBody');
-  if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-10 text-stone-400">Đang tải danh sách vouchers...</td></tr>`;
+  if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-10 text-stone-400">Đang tải danh sách khuyến mãi...</td></tr>`;
 
   try {
-    const res = await fetch('../api/admin/promotions.php');
+    const q = new URLSearchParams({ search, status, discount_type: discountType, date_from: dateFrom, date_to: dateTo, sort, page, limit: 15 });
+    const res = await fetch(`../api/admin/promotions.php?${q.toString()}`);
     if (res.status === 401) { window.location.href = 'login.php'; return; }
     const json = await res.json();
 
-    if (json.success) {
-      renderVouchersTable(json.data.vouchers || []);
+    if (json.success && json.data) {
+      currentPromotions = json.data.items || json.data.vouchers || [];
+      const st = json.data.stats || {};
+      const elAct = document.getElementById('promoStatActive');
+      const elSch = document.getElementById('promoStatScheduled');
+      const elUsed = document.getElementById('promoStatTotalUsed');
+      const elSaved = document.getElementById('promoStatTotalSaved');
+      if (elAct) elAct.textContent = st.active ?? 0;
+      if (elSch) elSch.textContent = `${st.scheduled ?? 0} / ${st.paused ?? 0}`;
+      if (elUsed) elUsed.textContent = `${st.total_used ?? 0} lượt`;
+      if (elSaved) elSaved.textContent = formatMoney(st.total_saved ?? 0);
+
+      renderPromotionsTable(currentPromotions);
+      renderPromotionsPagination(json.data.pagination);
     } else {
-      if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-rose-500">${escapeHtml(json.message)}</td></tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-rose-500">${escapeHtml(json.message || 'Lỗi tải dữ liệu')}</td></tr>`;
     }
   } catch (err) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-rose-500">Lỗi kết nối khuyến mãi.</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-rose-500">Lỗi kết nối API khuyến mãi.</td></tr>`;
   }
 }
 
-function renderVouchersTable(vouchers) {
+function resetPromoFilters() {
+  if (document.getElementById('promoSearchInput')) document.getElementById('promoSearchInput').value = '';
+  if (document.getElementById('promoStatusFilter')) document.getElementById('promoStatusFilter').value = 'all';
+  if (document.getElementById('promoTypeFilter')) document.getElementById('promoTypeFilter').value = 'all';
+  if (document.getElementById('promoDateFrom')) document.getElementById('promoDateFrom').value = '';
+  if (document.getElementById('promoDateTo')) document.getElementById('promoDateTo').value = '';
+  if (document.getElementById('promoSortFilter')) document.getElementById('promoSortFilter').value = 'created_desc';
+  loadAdminPromotions(1);
+}
+
+function renderPromotionsTable(items) {
   const tbody = document.getElementById('vouchersTableBody');
   if (!tbody) return;
 
-  if (vouchers.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-stone-400">Chưa có mã giảm giá nào được kích hoạt.</td></tr>`;
+  if (!items || items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-stone-400">Không có chương trình khuyến mãi nào phù hợp.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = vouchers.map(v => {
-    const discountStr = v.discount_type === 'percentage' ? `${v.discount_value}%` : formatMoney(v.discount_value);
+  tbody.innerHTML = items.map(v => {
+    const isPct = v.discount_type === 'percentage';
+    const typeLabel = isPct
+      ? '<span class="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold text-[10px]">Phần trăm (%)</span>'
+      : '<span class="px-2 py-0.5 rounded bg-sky-50 text-sky-700 font-semibold text-[10px]">Tiền cố định (VNĐ)</span>';
+
+    const valueStr = isPct ? `${Number(v.discount_value)}%` : formatMoney(v.discount_value);
+    const maxCap = v.max_discount_per_order || v.max_discount_amount;
+    const scopeMap = { all: 'Toàn bộ SP', category: `${v.scope_cat_count || 0} danh mục`, product: `${v.scope_prod_count || 0} sản phẩm` };
+    const custMap = { all: '', new_customer: '• Khách mới', vip: '• VIP' };
+    const stMeta = PROMO_STATUS_META[v.status] || PROMO_STATUS_META.paused;
+
+    const totalLim = Number(v.usage_limit) || 0;
+    const used = Number(v.used_count) || 0;
+    const remStr = totalLim > 0 ? `${Math.max(0, totalLim - used)}` : '∞';
+    const limStr = totalLim > 0 ? totalLim : '∞';
+
     return `
       <tr class="hover:bg-stone-50 transition">
-        <td class="py-3 px-4 font-mono font-bold text-rose-600">${escapeHtml(v.code)}</td>
-        <td class="py-3 px-4">
-          <div class="font-bold text-stone-900">${escapeHtml(v.campaign_name || 'Khuyến mãi đặc biệt')}</div>
-          <div class="text-[11px] text-stone-400 truncate max-w-xs">${escapeHtml(v.description || '')}</div>
-        </td>
-        <td class="py-3 px-4 font-bold text-rose-700 font-mono">${discountStr}</td>
-        <td class="py-3 px-4 font-mono text-stone-700">${formatMoney(v.min_order_value)}</td>
-        <td class="py-3 px-4 font-mono">
-          <strong>${v.used_count || 0}</strong> / ${v.usage_limit}
-        </td>
-        <td class="py-3 px-4 text-[11px] text-stone-500 font-mono">
-          ${escapeHtml(v.start_at ? v.start_at.substring(0, 10) : '')} &rarr; ${escapeHtml(v.end_at ? v.end_at.substring(0, 10) : '')}
+        <td class="py-3 px-4 max-w-[220px]">
+          <button onclick="openPromotionDetailModal(${v.id})" class="font-bold text-stone-900 hover:text-rose-600 text-left block truncate w-full">${escapeHtml(v.program_name || v.campaign_name || v.code)}</button>
+          <span class="text-[10px] text-stone-400 block">${scopeMap[v.scope_type] || 'Toàn bộ SP'} ${custMap[v.customer_scope] || ''}</span>
         </td>
         <td class="py-3 px-4">
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${v.is_active == 1 ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-500'}">
-            ${v.is_active == 1 ? 'Đang áp dụng' : 'Tạm dừng'}
-          </span>
+          <span class="font-mono font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">${escapeHtml(v.code)}</span>
+          ${v.batch_code ? `<span class="block text-[10px] text-stone-400 mt-0.5">Mã nhóm</span>` : ''}
         </td>
-        <td class="py-3 px-4 text-right">
-          <button onclick="handleToggleVoucher(${v.id}, ${v.is_active})" class="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold transition">
-            ${v.is_active == 1 ? 'Khóa' : 'Kích hoạt'}
-          </button>
+        <td class="py-3 px-4">${typeLabel}</td>
+        <td class="py-3 px-4">
+          <span class="font-bold text-stone-900 font-mono">${valueStr}</span>
+          ${maxCap ? `<span class="block text-[10px] text-stone-500">Tối đa: ${formatMoney(maxCap)}</span>` : ''}
+          <span class="block text-[10px] text-stone-400">Đơn tối thiểu: ${formatMoney(v.min_order_value)}</span>
+        </td>
+        <td class="py-3 px-4 font-mono text-[11px] text-stone-600 whitespace-nowrap">
+          <div>${escapeHtml(formatDateVN(v.start_at))}</div>
+          <div class="text-stone-400">&rarr; ${escapeHtml(formatDateVN(v.end_at))}</div>
+        </td>
+        <td class="py-3 px-4 font-mono text-[11px] whitespace-nowrap">
+          <span>Tổng: <strong>${limStr}</strong></span> •
+          <span class="text-rose-600">Dùng: <strong>${used}</strong></span> •
+          <span class="text-emerald-700">Còn: <strong>${remStr}</strong></span>
+          <span class="block text-[10px] text-stone-400">${v.per_user_limit > 0 ? `Tối đa ${v.per_user_limit} lượt/khách` : 'Không giới hạn/khách'}</span>
+        </td>
+        <td class="py-3 px-4">
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${stMeta.cls}">${stMeta.text}</span>
+        </td>
+        <td class="py-3 px-4 text-right whitespace-nowrap space-x-1">
+          <button onclick="openPromotionDetailModal(${v.id})" class="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition" title="Xem chi tiết & lịch sử"><i class="ph ph-eye text-sm"></i></button>
+          <button onclick="openPromotionModal(${v.id})" class="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition" title="Chỉnh sửa"><i class="ph ph-pencil-simple text-sm"></i></button>
+          ${(v.status === 'active' || v.status === 'scheduled')
+            ? `<button onclick="handlePromotionStatusAction(${v.id}, 'pause')" class="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg transition" title="Tạm dừng"><i class="ph ph-pause text-sm"></i></button>`
+            : (v.status === 'paused' || v.status === 'draft')
+              ? `<button onclick="handlePromotionStatusAction(${v.id}, 'resume')" class="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition" title="Kích hoạt"><i class="ph ph-play text-sm"></i></button>`
+              : ''}
+          ${v.status !== 'ended'
+            ? `<button onclick="handlePromotionStatusAction(${v.id}, 'end_now')" class="p-1.5 bg-stone-100 hover:bg-rose-100 text-stone-600 hover:text-rose-600 rounded-lg transition" title="Kết thúc chương trình"><i class="ph ph-stop-circle text-sm"></i></button>`
+            : ''}
+          ${used === 0
+            ? `<button onclick="handleDeletePromotion(${v.id}, '${escapeHtml(v.code)}')" class="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition" title="Xóa mã"><i class="ph ph-trash text-sm"></i></button>`
+            : ''}
         </td>
       </tr>
     `;
   }).join('');
 }
 
+function renderPromotionsPagination(pagination) {
+  const wrap = document.getElementById('promotionsPagination');
+  if (!wrap || !pagination) return;
+  const { total, page, total_pages } = pagination;
+  wrap.innerHTML = `
+    <span>Trang <strong>${page}</strong> / ${total_pages} (Tổng <strong>${total}</strong> chương trình)</span>
+    <div class="flex items-center gap-1.5">
+      <button ${page <= 1 ? 'disabled' : ''} onclick="loadAdminPromotions(${page - 1})" class="px-3 py-1 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 disabled:opacity-40">Trước</button>
+      <button ${page >= total_pages ? 'disabled' : ''} onclick="loadAdminPromotions(${page + 1})" class="px-3 py-1 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 disabled:opacity-40">Sau</button>
+    </div>
+  `;
+}
+
 function openVoucherModal() {
-  document.getElementById('vouchCode').value = 'BLOOM' + Math.floor(10 + Math.random() * 90);
-  document.getElementById('vouchValue').value = '50000';
-  document.getElementById('vouchMinOrder').value = '500000';
-  document.getElementById('vouchLimit').value = '100';
-  document.getElementById('vouchDays').value = '30';
-  document.getElementById('vouchDesc').value = 'Mã ưu đãi mừng khai trương Bloomora';
-  document.getElementById('voucherModal').classList.remove('hidden');
+  return openPromotionModal(null);
+}
+
+async function loadPromoScopeSelectors(selectedCategoryIds = [], selectedProductIds = []) {
+  try {
+    const [catRes, prodRes] = await Promise.all([
+      fetch('../api/admin/categories.php?all=1'),
+      fetch('../api/admin/products.php?limit=100')
+    ]);
+    const catJson = await catRes.json();
+    const prodJson = await prodRes.json();
+
+    const cats = catJson.success ? (catJson.data || []) : [];
+    const prods = prodJson.success && prodJson.data ? (prodJson.data.items || []) : [];
+    promoScopeProductsCache = prods;
+
+    const catWrap = document.getElementById('promoCategoryChecklist');
+    if (catWrap) {
+      catWrap.innerHTML = cats.map(c => `
+        <label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-stone-50 cursor-pointer">
+          <input type="checkbox" name="promo_cat_id" value="${c.id}" ${selectedCategoryIds.includes(Number(c.id)) ? 'checked' : ''} class="rounded text-rose-600 focus:ring-rose-500" />
+          <span class="truncate">${escapeHtml(c.name)}</span>
+        </label>
+      `).join('');
+    }
+
+    renderPromoProductChecklist(prods, selectedProductIds);
+  } catch (e) {}
+}
+
+function renderPromoProductChecklist(products, selectedIds = null) {
+  const wrap = document.getElementById('promoProductChecklist');
+  if (!wrap) return;
+  const activeSel = selectedIds || Array.from(document.querySelectorAll('input[name="promo_prod_id"]:checked')).map(el => Number(el.value));
+  wrap.innerHTML = products.map(p => `
+    <label class="promo-prod-item flex items-center gap-2 p-1.5 rounded-lg hover:bg-stone-50 cursor-pointer" data-search="${escapeHtml((p.name + ' ' + p.sku).toLowerCase())}">
+      <input type="checkbox" name="promo_prod_id" value="${p.id}" ${activeSel.includes(Number(p.id)) ? 'checked' : ''} class="rounded text-rose-600 focus:ring-rose-500" />
+      <span class="truncate font-medium text-stone-800">${escapeHtml(p.name)}</span>
+      <span class="font-mono text-[10px] text-stone-400 ml-auto">${escapeHtml(p.sku)}</span>
+    </label>
+  `).join('');
+}
+
+function filterPromoProductChecklist(kw) {
+  const q = String(kw || '').toLowerCase().trim();
+  document.querySelectorAll('.promo-prod-item').forEach(el => {
+    const match = !q || (el.dataset.search || '').includes(q);
+    el.classList.toggle('hidden', !match);
+  });
+}
+
+function onPromoCodeModeChange() {
+  const mode = document.getElementById('promoCodeMode')?.value || 'single';
+  const batchWrap = document.getElementById('promoBatchCountWrap');
+  const singleWrap = document.getElementById('promoSingleCodeWrap');
+  const codeInput = document.getElementById('promoCode');
+  if (mode === 'batch') {
+    batchWrap?.classList.remove('hidden');
+    singleWrap?.classList.add('hidden');
+    if (codeInput) codeInput.required = false;
+  } else {
+    batchWrap?.classList.add('hidden');
+    singleWrap?.classList.remove('hidden');
+    if (codeInput) codeInput.required = true;
+  }
+}
+
+function onPromoDiscountTypeChange() {
+  const dtype = document.getElementById('promoDiscountType')?.value || 'percentage';
+  const unit = document.getElementById('promoValueUnit');
+  const maxWrap = document.getElementById('promoMaxDiscountWrap');
+  const valInput = document.getElementById('promoDiscountValue');
+  if (dtype === 'percentage') {
+    if (unit) unit.textContent = '%';
+    maxWrap?.classList.remove('hidden');
+    if (valInput) { valInput.max = '100'; valInput.placeholder = '10, 15, 20...'; }
+  } else {
+    if (unit) unit.textContent = 'VNĐ';
+    maxWrap?.classList.add('hidden');
+    if (valInput) { valInput.removeAttribute('max'); valInput.placeholder = '50000'; }
+  }
+}
+
+function onPromoScopeTypeChange() {
+  const sc = document.getElementById('promoScopeType')?.value || 'all';
+  document.getElementById('promoCategorySelectorWrap')?.classList.toggle('hidden', sc !== 'category');
+  document.getElementById('promoProductSelectorWrap')?.classList.toggle('hidden', sc !== 'product');
+}
+
+async function generatePromotionCode() {
+  const prefix = document.getElementById('promoPrefix')?.value.trim() || 'BLOOM';
+  const msgEl = document.getElementById('promoCodeCheckMsg');
+  try {
+    const res = await fetch('../api/admin/promotions.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'generate_code', prefix, count: 1 })
+    });
+    const json = await res.json();
+    if (json.success && json.code) {
+      document.getElementById('promoCode').value = json.code;
+      if (msgEl) {
+        msgEl.className = 'text-[11px] mt-1 block text-emerald-600 font-semibold';
+        msgEl.textContent = `Đã tạo mã duy nhất: ${json.code}`;
+      }
+    }
+  } catch (e) {}
+}
+
+function checkPromoCodeDuplicate() {
+  clearTimeout(promoCodeCheckTimer);
+  const code = document.getElementById('promoCode')?.value.trim() || '';
+  const excludeId = document.getElementById('promoEditId')?.value || '0';
+  const msgEl = document.getElementById('promoCodeCheckMsg');
+  if (!msgEl) return;
+  if (code.length < 2) {
+    msgEl.className = 'text-[11px] mt-1 block text-stone-400';
+    msgEl.textContent = 'Nhập tối thiểu 3 ký tự không dấu hoặc bấm "Tạo Mã Tự Động".';
+    return;
+  }
+  promoCodeCheckTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`../api/admin/promotions.php?check_code=${encodeURIComponent(code)}&exclude_id=${excludeId}`);
+      const json = await res.json();
+      if (json.success) {
+        msgEl.className = json.available
+          ? 'text-[11px] mt-1 block text-emerald-600 font-semibold'
+          : 'text-[11px] mt-1 block text-rose-600 font-semibold';
+        msgEl.textContent = json.message;
+      }
+    } catch (e) {}
+  }, 300);
+}
+
+async function openPromotionModal(promoId = null) {
+  const modal = document.getElementById('promotionModal');
+  const title = document.getElementById('promoModalTitle');
+  const lockNotice = document.getElementById('promoLockNotice');
+  showFormAlert('promoFormAlert', '');
+  lockNotice?.classList.add('hidden');
+
+  if (promoId) {
+    title.textContent = 'Chỉnh Sửa Chương Trình Khuyến Mãi';
+    document.getElementById('promoModeWrap')?.classList.add('hidden');
+    document.getElementById('promoBatchCountWrap')?.classList.add('hidden');
+    document.getElementById('promoSingleCodeWrap')?.classList.remove('hidden');
+
+    try {
+      const res = await fetch(`../api/admin/promotions.php?id=${promoId}`);
+      const json = await res.json();
+      if (!json.success || !json.data) {
+        showAdminToast(json.message || 'Không tải được dữ liệu khuyến mãi.', 'error');
+        return;
+      }
+      const p = json.data;
+      const locked = !!p.is_locked_financials;
+
+      document.getElementById('promoEditId').value = p.id;
+      document.getElementById('promoName').value = p.program_name || '';
+      document.getElementById('promoPrefix').value = p.prefix || 'BLOOM';
+      document.getElementById('promoCode').value = p.code || '';
+      document.getElementById('promoDesc').value = p.description || '';
+      document.getElementById('promoDiscountType').value = p.discount_type || 'percentage';
+      document.getElementById('promoDiscountValue').value = p.discount_value || '';
+      document.getElementById('promoMaxDiscount').value = p.max_discount_amount || '';
+      document.getElementById('promoMaxPerOrder').value = p.max_discount_per_order || '';
+      document.getElementById('promoMinOrder').value = p.min_order_value ?? 0;
+      document.getElementById('promoUsageLimit').value = p.usage_limit ?? 100;
+      document.getElementById('promoPerUserLimit').value = p.per_user_limit ?? 1;
+      document.getElementById('promoStartAt').value = toDatetimeLocalValue(p.start_at);
+      document.getElementById('promoEndAt').value = toDatetimeLocalValue(p.end_at);
+      document.getElementById('promoStatus').value = (p.status === 'draft' || p.status === 'paused') ? p.status : 'active';
+      document.getElementById('promoScopeType').value = p.scope_type || 'all';
+      document.getElementById('promoCustomerScope').value = p.customer_scope || 'all';
+
+      ['promoCode', 'promoDiscountType', 'promoDiscountValue', 'promoMaxDiscount', 'promoMaxPerOrder', 'promoMinOrder', 'promoScopeType', 'promoCustomerScope'].forEach(fid => {
+        const el = document.getElementById(fid);
+        if (el) el.disabled = locked;
+      });
+      document.getElementById('btnGenPromoCode').disabled = locked;
+      if (locked) lockNotice?.classList.remove('hidden');
+
+      onPromoDiscountTypeChange();
+      onPromoScopeTypeChange();
+      const catIds = (p.scopes && p.scopes.category_ids) ? p.scopes.category_ids.map(Number) : [];
+      const prodIds = (p.scopes && p.scopes.product_ids) ? p.scopes.product_ids.map(Number) : [];
+      await loadPromoScopeSelectors(catIds, prodIds);
+      modal.classList.remove('hidden');
+    } catch (e) {
+      showAdminToast('Lỗi tải chi tiết khuyến mãi.', 'error');
+    }
+  } else {
+    title.textContent = 'Tạo Chương Trình Khuyến Mãi Mới';
+    document.getElementById('promoEditId').value = '';
+    document.getElementById('promoModeWrap')?.classList.remove('hidden');
+    document.getElementById('promoCodeMode').value = 'single';
+
+    ['promoCode', 'promoDiscountType', 'promoDiscountValue', 'promoMaxDiscount', 'promoMaxPerOrder', 'promoMinOrder', 'promoScopeType', 'promoCustomerScope'].forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el) el.disabled = false;
+    });
+    document.getElementById('btnGenPromoCode').disabled = false;
+
+    document.getElementById('promoName').value = '';
+    document.getElementById('promoPrefix').value = 'BLOOM';
+    document.getElementById('promoCode').value = '';
+    document.getElementById('promoDesc').value = '';
+    document.getElementById('promoDiscountType').value = 'percentage';
+    document.getElementById('promoDiscountValue').value = '10';
+    document.getElementById('promoMaxDiscount').value = '100000';
+    document.getElementById('promoMaxPerOrder').value = '';
+    document.getElementById('promoMinOrder').value = '300000';
+    document.getElementById('promoUsageLimit').value = '100';
+    document.getElementById('promoPerUserLimit').value = '1';
+    document.getElementById('promoStatus').value = 'active';
+    document.getElementById('promoScopeType').value = 'all';
+    document.getElementById('promoCustomerScope').value = 'all';
+
+    // Default start = now, end = +7 days (local Vietnam time formatting)
+    const now = new Date();
+    const end = new Date(now.getTime() + 7 * 86400000);
+    const fmt = d => {
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    document.getElementById('promoStartAt').value = fmt(now);
+    document.getElementById('promoEndAt').value = fmt(end);
+
+    onPromoCodeModeChange();
+    onPromoDiscountTypeChange();
+    onPromoScopeTypeChange();
+    await loadPromoScopeSelectors([], []);
+    await generatePromotionCode();
+    modal.classList.remove('hidden');
+  }
+}
+
+function closePromotionModal() {
+  document.getElementById('promotionModal').classList.add('hidden');
 }
 
 function closeVoucherModal() {
-  document.getElementById('voucherModal').classList.add('hidden');
+  closePromotionModal();
 }
 
-async function handleVoucherSubmit(e) {
+async function handlePromotionSubmit(e) {
   e.preventDefault();
-  const code = document.getElementById('vouchCode').value.trim().toUpperCase();
-  const discount_type = document.getElementById('vouchType').value;
-  const discount_value = parseFloat(document.getElementById('vouchValue').value);
-  const min_order_value = parseFloat(document.getElementById('vouchMinOrder').value);
-  const usage_limit = parseInt(document.getElementById('vouchLimit').value, 10);
-  const days = parseInt(document.getElementById('vouchDays').value, 10);
-  const description = document.getElementById('vouchDesc').value.trim();
+  const editId = document.getElementById('promoEditId').value;
+  const isEdit = editId !== '';
 
-  // Margin safety guard check
-  if (discount_type === 'percentage' && discount_value > 30) {
-    if (!confirm('Cảnh báo an toàn biên lợi nhuận: Mức giảm > 30% có thể ảnh hưởng đến chi phí hoa tươi. Tiếp tục tạo?')) return;
+  const programName = document.getElementById('promoName').value.trim();
+  const discountType = document.getElementById('promoDiscountType').value;
+  const discountValue = parseFloat(document.getElementById('promoDiscountValue').value);
+  const startAt = document.getElementById('promoStartAt').value;
+  const endAt = document.getElementById('promoEndAt').value;
+  const scopeType = document.getElementById('promoScopeType').value;
+
+  if (!programName) { showFormAlert('promoFormAlert', 'Vui lòng nhập Tên chương trình.'); return; }
+  if (!discountType) { showFormAlert('promoFormAlert', 'Vui lòng chọn Loại giảm giá.'); return; }
+  if (isNaN(discountValue) || discountValue <= 0) { showFormAlert('promoFormAlert', 'Giá trị giảm phải lớn hơn 0.'); return; }
+  if (discountType === 'percentage' && discountValue > 100) { showFormAlert('promoFormAlert', 'Mức giảm phần trăm không được vượt quá 100%.'); return; }
+  if (!startAt || !endAt || new Date(endAt) <= new Date(startAt)) {
+    showFormAlert('promoFormAlert', 'Ngày giờ kết thúc phải sau ngày giờ bắt đầu.');
+    return;
   }
 
-  const start = new Date();
-  const end = new Date();
-  end.setDate(end.getDate() + days);
+  const categoryIds = Array.from(document.querySelectorAll('input[name="promo_cat_id"]:checked')).map(el => parseInt(el.value, 10));
+  const productIds = Array.from(document.querySelectorAll('input[name="promo_prod_id"]:checked')).map(el => parseInt(el.value, 10));
+
+  if (!isEdit && scopeType === 'category' && categoryIds.length === 0) {
+    showFormAlert('promoFormAlert', 'Vui lòng chọn ít nhất 1 danh mục áp dụng.');
+    return;
+  }
+  if (!isEdit && scopeType === 'product' && productIds.length === 0) {
+    showFormAlert('promoFormAlert', 'Vui lòng chọn ít nhất 1 sản phẩm áp dụng.');
+    return;
+  }
 
   const payload = {
-    action: 'create_voucher',
-    code,
-    description,
-    discount_type,
-    discount_value,
-    min_order_value,
-    usage_limit,
-    start_at: start.toISOString().slice(0, 19).replace('T', ' '),
-    end_at: end.toISOString().slice(0, 19).replace('T', ' '),
+    action: isEdit ? 'update_promotion' : 'create_promotion',
+    id: isEdit ? parseInt(editId, 10) : undefined,
+    program_name: programName,
+    description: document.getElementById('promoDesc').value.trim(),
+    code_mode: document.getElementById('promoCodeMode')?.value || 'single',
+    batch_count: parseInt(document.getElementById('promoBatchCount')?.value || '5', 10),
+    prefix: document.getElementById('promoPrefix').value.trim().toUpperCase(),
+    code: document.getElementById('promoCode').value.trim().toUpperCase(),
+    discount_type: discountType,
+    discount_value: discountValue,
+    max_discount_amount: document.getElementById('promoMaxDiscount').value !== '' ? parseFloat(document.getElementById('promoMaxDiscount').value) : null,
+    max_discount_per_order: document.getElementById('promoMaxPerOrder').value !== '' ? parseFloat(document.getElementById('promoMaxPerOrder').value) : null,
+    min_order_value: parseFloat(document.getElementById('promoMinOrder').value || '0'),
+    usage_limit: parseInt(document.getElementById('promoUsageLimit').value || '0', 10),
+    per_user_limit: parseInt(document.getElementById('promoPerUserLimit').value || '0', 10),
+    start_at: startAt,
+    end_at: endAt,
+    status: document.getElementById('promoStatus').value,
+    scope_type: scopeType,
+    customer_scope: document.getElementById('promoCustomerScope').value,
+    category_ids: categoryIds,
+    product_ids: productIds,
   };
+
+  const btn = document.getElementById('promoSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Đang lưu...';
+  showFormAlert('promoFormAlert', '');
 
   try {
     const res = await fetch('../api/admin/promotions.php', {
@@ -1953,26 +2714,204 @@ async function handleVoucherSubmit(e) {
     });
     const json = await res.json();
     if (json.success) {
-      alert('Tạo mã voucher thành công!');
-      closeVoucherModal();
-      loadAdminVouchers();
+      showAdminToast(json.message, 'success');
+      closePromotionModal();
+      loadAdminPromotions(currentPromotionsPage);
     } else {
-      alert('Lỗi: ' + json.message);
+      showFormAlert('promoFormAlert', json.message || 'Không thể lưu chương trình khuyến mãi.');
     }
   } catch (err) {
-    alert('Lỗi kết nối máy chủ.');
+    showFormAlert('promoFormAlert', 'Lỗi kết nối máy chủ.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Lưu Chương Trình';
   }
 }
 
-async function handleToggleVoucher(id, currentActive) {
+async function openPromotionDetailModal(promoId) {
+  const modal = document.getElementById('promotionDetailModal');
+  const body = document.getElementById('promotionDetailBody');
+  const sub = document.getElementById('promoDetailSubtitle');
+  sub.textContent = 'Đang tải...';
+  body.innerHTML = `<div class="py-10 text-center text-stone-400">Đang tải chi tiết chương trình...</div>`;
+  modal.classList.remove('hidden');
+
   try {
-    await fetch('../api/admin/promotions.php', {
+    const res = await fetch(`../api/admin/promotions.php?id=${promoId}`);
+    const json = await res.json();
+    if (!json.success || !json.data) {
+      body.innerHTML = `<div class="py-6 text-center text-rose-600">${escapeHtml(json.message || 'Không tìm thấy dữ liệu.')}</div>`;
+      return;
+    }
+
+    const p = json.data;
+    const stMeta = PROMO_STATUS_META[p.status] || PROMO_STATUS_META.paused;
+    const isPct = p.discount_type === 'percentage';
+    const valText = isPct ? `${p.discount_value}%` : formatMoney(p.discount_value);
+    const scopeCats = (p.scopes && p.scopes.categories) ? p.scopes.categories : [];
+    const scopeProds = (p.scopes && p.scopes.products) ? p.scopes.products : [];
+    const usages = p.usages || [];
+
+    sub.textContent = `Mã: ${p.code} • Hiệu lực: ${formatDateVN(p.start_at)} -> ${formatDateVN(p.end_at)}`;
+
+    const usagesHtml = usages.length > 0
+      ? `<table class="w-full text-left text-xs">
+          <thead class="bg-stone-50 text-[11px] text-stone-400 uppercase border-b border-stone-200">
+            <tr>
+              <th class="py-2 px-3">Mã Đơn</th>
+              <th class="py-2 px-3">Khách Hàng</th>
+              <th class="py-2 px-3">Số Tiền Giảm</th>
+              <th class="py-2 px-3">Giá Trị Đơn</th>
+              <th class="py-2 px-3">Trạng Thái Đơn</th>
+              <th class="py-2 px-3">Trạng Thái Mã</th>
+              <th class="py-2 px-3">Thời Gian</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-stone-100">
+            ${usages.map(u => `
+              <tr>
+                <td class="py-2 px-3 font-mono font-bold text-rose-600">#${escapeHtml(u.order_code || u.order_id)}</td>
+                <td class="py-2 px-3">
+                  <div class="font-semibold text-stone-800">${escapeHtml(u.customer_name)}</div>
+                  <div class="text-[10px] text-stone-400 font-mono">${escapeHtml(u.customer_phone || u.customer_email || '')}</div>
+                </td>
+                <td class="py-2 px-3 font-mono font-bold text-emerald-700">-${formatMoney(u.discount_amount)}</td>
+                <td class="py-2 px-3 font-mono">${formatMoney(u.order_total)}</td>
+                <td class="py-2 px-3 text-[11px]">${escapeHtml(u.order_status)}</td>
+                <td class="py-2 px-3">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${u.status === 'used' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'}">
+                    ${u.status === 'used' ? 'Đã áp dụng' : 'Đã hoàn lượt'}
+                  </span>
+                </td>
+                <td class="py-2 px-3 font-mono text-[11px] text-stone-500">${escapeHtml(formatDateVN(u.used_at))}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`
+      : `<div class="py-8 text-center text-stone-400 italic">Chưa có đơn hàng nào sử dụng mã này.</div>`;
+
+    body.innerHTML = `
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="md:col-span-2 p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2.5">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <h4 class="text-base font-bold text-stone-900 font-serif-title">${escapeHtml(p.program_name)}</h4>
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${stMeta.cls}">${stMeta.text}</span>
+          </div>
+          <p class="text-stone-600">${escapeHtml(p.description || 'Không có mô tả chi tiết.')}</p>
+          <div class="grid grid-cols-2 gap-2 pt-1 text-[11px] text-stone-600">
+            <div>Mã KM: <strong class="font-mono text-rose-600 text-xs">${escapeHtml(p.code)}</strong></div>
+            <div>Mức giảm: <strong class="font-mono text-stone-900">${valText}</strong> (${isPct ? 'Phần trăm %' : 'Tiền cố định VNĐ'})</div>
+            <div>Giảm tối đa (%): <strong>${p.max_discount_amount ? formatMoney(p.max_discount_amount) : 'Không giới hạn'}</strong></div>
+            <div>Giảm tối đa/đơn: <strong>${p.max_discount_per_order ? formatMoney(p.max_discount_per_order) : 'Không giới hạn'}</strong></div>
+            <div>Đơn tối thiểu: <strong>${formatMoney(p.min_order_value)}</strong></div>
+            <div>Giới hạn/khách: <strong>${p.per_user_limit > 0 ? `${p.per_user_limit} lượt` : 'Không giới hạn'}</strong></div>
+            <div>Bắt đầu: <strong class="font-mono">${escapeHtml(formatDateVN(p.start_at))}</strong></div>
+            <div>Kết thúc: <strong class="font-mono">${escapeHtml(formatDateVN(p.end_at))}</strong></div>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-rose-50/60 border border-rose-100 flex flex-col justify-between space-y-3">
+          <div>
+            <span class="text-[11px] uppercase font-bold text-rose-700 block">Hiệu Quả Khuyến Mãi</span>
+            <div class="text-2xl font-extrabold text-rose-700 font-serif-title mt-1">${formatMoney(p.total_discount_given)}</div>
+            <span class="text-[11px] text-stone-500">Tổng số tiền đã giảm cho khách</span>
+          </div>
+          <div class="space-y-1 text-[11px] text-stone-700 border-t border-rose-200/70 pt-2">
+            <div class="flex justify-between"><span>Tổng lượt cho phép:</span><strong class="font-mono">${p.usage_limit > 0 ? p.usage_limit : 'Không giới hạn'}</strong></div>
+            <div class="flex justify-between"><span>Đã sử dụng:</span><strong class="font-mono text-rose-600">${p.used_count}</strong></div>
+            <div class="flex justify-between"><span>Số lượt còn lại:</span><strong class="font-mono text-emerald-700">${p.remaining_usage !== null ? p.remaining_usage : '∞'}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+        <span class="font-bold text-stone-800 block">Phạm Vi & Điều Kiện Áp Dụng:</span>
+        <div class="flex flex-wrap gap-2 text-[11px]">
+          <span class="px-2.5 py-1 rounded-lg bg-white border border-stone-200 font-semibold">
+            Khách hàng: ${p.customer_scope === 'new_customer' ? 'Khách hàng mới' : p.customer_scope === 'vip' ? 'Khách VIP' : 'Tất cả khách'}
+          </span>
+          ${p.scope_type === 'all' ? '<span class="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold">Toàn bộ sản phẩm</span>' : ''}
+          ${scopeCats.map(c => `<span class="px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-800 font-semibold">Danh mục: ${escapeHtml(c.name)}</span>`).join('')}
+          ${scopeProds.map(pr => `<span class="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 font-semibold">${escapeHtml(pr.sku)} - ${escapeHtml(pr.name)}</span>`).join('')}
+        </div>
+      </div>
+
+      ${p.batch_codes && p.batch_codes.length > 1 ? `
+        <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200">
+          <span class="font-bold text-stone-800 block mb-2">Các Mã Riêng Thuộc Cùng Chiến Dịch (${p.batch_codes.length} mã):</span>
+          <div class="flex flex-wrap gap-1.5">
+            ${p.batch_codes.map(b => `<span class="px-2 py-0.5 rounded bg-white border border-stone-200 font-mono text-[11px] ${b.id == p.id ? 'border-rose-500 text-rose-600 font-bold' : ''}">${escapeHtml(b.code)} (${b.used_count}/${b.usage_limit || '∞'})</span>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="border border-stone-200 rounded-2xl overflow-hidden">
+        <div class="px-4 py-3 bg-stone-50 border-b border-stone-200 font-bold text-stone-800">Lịch Sử Sử Dụng Mã (${usages.length} lượt)</div>
+        <div class="max-h-64 overflow-y-auto">${usagesHtml}</div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
+        ${(p.status === 'active' || p.status === 'scheduled')
+          ? `<button onclick="handlePromotionStatusAction(${p.id}, 'pause', true)" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold">Tạm Dừng</button>`
+          : (p.status === 'paused' || p.status === 'draft')
+            ? `<button onclick="handlePromotionStatusAction(${p.id}, 'resume', true)" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold">Kích Hoạt Lại</button>`
+            : ''}
+        ${p.status !== 'ended'
+          ? `<button onclick="handlePromotionStatusAction(${p.id}, 'end_now', true)" class="px-4 py-2 bg-stone-200 hover:bg-rose-100 text-stone-700 hover:text-rose-700 rounded-xl font-bold">Kết Thúc Chương Trình</button>`
+          : ''}
+        <button onclick="closePromotionDetailModal(); openPromotionModal(${p.id});" class="px-4 py-2 bg-stone-900 hover:bg-black text-white rounded-xl font-bold">Chỉnh Sửa</button>
+      </div>
+    `;
+  } catch (e) {
+    body.innerHTML = `<div class="py-6 text-center text-rose-600">Lỗi tải chi tiết khuyến mãi.</div>`;
+  }
+}
+
+function closePromotionDetailModal() {
+  document.getElementById('promotionDetailModal').classList.add('hidden');
+}
+
+async function handlePromotionStatusAction(id, action, fromDetailModal = false) {
+  const confirmTexts = {
+    pause: 'Tạm dừng chương trình khuyến mãi này? Khách hàng sẽ tạm thời không áp dụng được mã.',
+    resume: 'Kích hoạt lại chương trình khuyến mãi này?',
+    end_now: 'Kết thúc ngay chương trình khuyến mãi này? Sau khi kết thúc, mã sẽ hết hiệu lực ngay lập tức.'
+  };
+  if (confirmTexts[action] && !confirm(confirmTexts[action])) return;
+
+  try {
+    const res = await fetch('../api/admin/promotions.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'toggle_voucher', voucher_id: id, is_active: currentActive == 1 ? 0 : 1 })
+      body: JSON.stringify({ action, id })
     });
-    loadAdminVouchers();
-  } catch (e) {}
+    const json = await res.json();
+    if (json.success) {
+      showAdminToast(json.message, 'success');
+      loadAdminPromotions(currentPromotionsPage);
+      if (fromDetailModal) openPromotionDetailModal(id);
+    } else {
+      showAdminToast(json.message || 'Không thể cập nhật trạng thái.', 'error');
+    }
+  } catch (e) {
+    showAdminToast('Lỗi kết nối máy chủ.', 'error');
+  }
+}
+
+async function handleDeletePromotion(id, code) {
+  if (!confirm(`Bạn có chắc chắn muốn xóa mã khuyến mãi "${code}"?`)) return;
+  try {
+    const res = await fetch(`../api/admin/promotions.php?id=${id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.success) {
+      showAdminToast(json.message, 'success');
+      loadAdminPromotions(currentPromotionsPage);
+    } else {
+      showAdminToast(json.message || 'Không thể xóa mã.', 'error');
+    }
+  } catch (e) {
+    showAdminToast('Lỗi kết nối máy chủ.', 'error');
+  }
 }
 
 // ==========================================================================

@@ -31,6 +31,8 @@ function getDBConnection(): PDO {
 
     try {
         $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+        $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+        $pdo->exec("SET time_zone = '+07:00'");
         return $pdo;
     } catch (PDOException $e) {
         error_log('[Bloomora DB Error] ' . $e->getMessage());

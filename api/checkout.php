@@ -53,6 +53,11 @@ try {
         'banh-kem' => ['name' => 'Bánh Kem Mini Chúc Mừng', 'price' => 180000],
     ];
 
+    // Đồng bộ trạng thái khuyến mãi theo giờ VN trước khi mở transaction khóa dòng
+    if ($voucherCode !== '' && class_exists('PromotionService')) {
+        PromotionService::syncStatuses($pdo);
+    }
+
     // 3. Khởi tạo Database Transaction
     $pdo->beginTransaction();
 
@@ -138,19 +143,40 @@ try {
         json_response(['success' => false, 'message' => 'Không có sản phẩm hợp lệ trong giỏ hàng.'], 400);
     }
 
-    // 5. Xử lý Voucher / Mã giảm giá nếu có (Server-side validation)
+    // 5. Xử lý Voucher / Mã khuyến mãi (Strict Server-side Validation + Row Lock FOR UPDATE)
     $discountAmount = 0.0;
     $appliedVoucher = null;
+    $voucherSnapshotJson = null;
+    $customerPhoneForVoucher = $senderPhone !== '' ? $senderPhone : $receiverPhone;
+
     if ($voucherCode !== '' && class_exists('PromotionService')) {
-        try {
-            $res = PromotionService::checkVoucher($pdo, $voucherCode, $subtotal, $userId);
-            if (!empty($res['valid'])) {
-                $appliedVoucher = $res['voucher'] ?? null;
-                $discountAmount = (float)($res['discountAmount'] ?? 0.0);
-            }
-        } catch (Throwable $ignore) {
-            // Không để lỗi voucher làm sập luồng đặt hàng
+        $res = PromotionService::checkVoucher(
+            $pdo,
+            $voucherCode,
+            $subtotal,
+            $userId,
+            $items,
+            $customerPhoneForVoucher,
+            true // FOR UPDATE row lock inside active DB transaction
+        );
+        if (empty($res['valid'])) {
+            $pdo->rollBack();
+            json_response([
+                'success' => false,
+                'message' => $res['message'] ?? 'Mã khuyến mãi không hợp lệ hoặc đã hết hiệu lực.'
+            ], 400);
         }
+        $appliedVoucher = $res['voucher'];
+        $discountAmount = (float)($res['discountAmount'] ?? 0.0);
+        $voucherSnapshotJson = json_encode([
+            'voucher_id'      => (int)$appliedVoucher['id'],
+            'code'            => (string)$appliedVoucher['code'],
+            'program_name'    => (string)($appliedVoucher['program_name'] ?? $appliedVoucher['code']),
+            'discount_type'   => (string)$appliedVoucher['discount_type'],
+            'discount_value'  => (float)$appliedVoucher['discount_value'],
+            'discount_amount' => $discountAmount,
+            'scope_type'      => (string)($appliedVoucher['scope_type'] ?? 'all'),
+        ], JSON_UNESCAPED_UNICODE);
     }
 
     $discountAmount = round(min($discountAmount, $subtotal), 2);
@@ -175,7 +201,22 @@ try {
     // 7. Tạo bản ghi đơn hàng trong bảng `orders`
     // Đối với tất cả phương thức (COD, VietQR, MoMo), trạng thái khởi tạo là 'unpaid', trạng thái đơn là 'received'
     $hasVoucherCol = (bool)$pdo->query("SHOW COLUMNS FROM orders LIKE 'voucher_code'")->fetch();
-    if ($hasVoucherCol) {
+    $hasVoucherIdCol = (bool)$pdo->query("SHOW COLUMNS FROM orders LIKE 'voucher_id'")->fetch();
+    if ($hasVoucherCol && $hasVoucherIdCol) {
+        $orderSql = "INSERT INTO orders (
+            order_code, user_id, sender_name, sender_phone, is_anonymous,
+            receiver_name, receiver_phone, receiver_address, city,
+            delivery_date, delivery_time_slot, card_message, ribbon_message,
+            voucher_code, voucher_id, voucher_snapshot, subtotal, shipping_fee, discount_amount, total_amount,
+            payment_method, payment_status, order_status
+        ) VALUES (
+            :order_code, :user_id, :sender_name, :sender_phone, :is_anonymous,
+            :receiver_name, :receiver_phone, :receiver_address, :city,
+            :delivery_date, :delivery_time_slot, :card_message, :ribbon_message,
+            :voucher_code, :voucher_id, :voucher_snapshot, :subtotal, :shipping_fee, :discount_amount, :total_amount,
+            :payment_method, 'unpaid', 'received'
+        )";
+    } elseif ($hasVoucherCol) {
         $orderSql = "INSERT INTO orders (
             order_code, user_id, sender_name, sender_phone, is_anonymous,
             receiver_name, receiver_phone, receiver_address, city,
@@ -228,9 +269,26 @@ try {
     if ($hasVoucherCol) {
         $params[':voucher_code'] = ($appliedVoucher ? $appliedVoucher['code'] : null);
     }
+    if ($hasVoucherCol && $hasVoucherIdCol) {
+        $params[':voucher_id'] = ($appliedVoucher ? (int)$appliedVoucher['id'] : null);
+        $params[':voucher_snapshot'] = $voucherSnapshotJson;
+    }
 
     $pdo->prepare($orderSql)->execute($params);
     $orderId = (int)$pdo->lastInsertId();
+
+    // 7b. Ghi nhận sử dụng voucher & trừ lượt sử dụng nguyên tử (ACID)
+    if ($appliedVoucher !== null && class_exists('PromotionService')) {
+        PromotionService::redeemVoucher(
+            $pdo,
+            $appliedVoucher,
+            $orderId,
+            $orderCode,
+            $discountAmount,
+            $userId,
+            $customerPhoneForVoucher
+        );
+    }
 
     // 8. Tạo chi tiết đơn hàng trong `order_items` và trừ tồn kho trong `products`
     $itemInsert = $pdo->prepare("INSERT INTO order_items (
@@ -290,6 +348,7 @@ try {
         'data'    => [
             'orderId'        => $orderId,
             'orderCode'      => $orderCode,
+            'voucherCode'    => $appliedVoucher ? $appliedVoucher['code'] : null,
             'subtotal'       => $subtotal,
             'discountAmount' => $discountAmount,
             'shippingFee'    => $shippingFee,

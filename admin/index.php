@@ -7,6 +7,10 @@
 require_once __DIR__ . '/../config/helpers.php';
 require_once __DIR__ . '/../config/database.php';
 
+if (!headers_sent()) {
+    header('Content-Type: text/html; charset=UTF-8');
+}
+
 init_secure_session();
 
 // Kiểm tra quyền nội bộ
@@ -41,16 +45,20 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
   <!-- Google Fonts Chuẩn Tiếng Việt -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
-  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/style.css?v=2.4">
 
   <script>
     tailwind.config = {
       theme: {
         extend: {
+          fontFamily: {
+            sans: ["'Be Vietnam Pro'", '-apple-system', 'BlinkMacSystemFont', "'Segoe UI'", 'Roboto', "'Helvetica Neue'", 'Arial', 'sans-serif'],
+            serif: ["'Playfair Display'", "'Be Vietnam Pro'", 'Georgia', "'Times New Roman'", 'serif'],
+          },
           colors: {
             rose: {
               50: '#fff1f2',
@@ -658,28 +666,73 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
 
       <!-- ================= 6. VIEW: CATEGORIES ================= -->
       <section id="view-categories" class="hidden space-y-5">
-        <div class="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
-          <div class="p-5 sm:p-6 border-b border-stone-100 flex items-center justify-between">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
             <div>
-              <h2 class="text-lg font-bold text-stone-900 font-serif-title">Phân Loại Chủ Đề & Dịp Tặng Hoa</h2>
-              <p class="text-xs text-stone-400">Danh mục hoa sinh nhật, khai trương, tốt nghiệp, hoa cưới, chia buồn</p>
+              <span class="text-xs text-stone-400 font-semibold block mb-0.5">Tổng Danh Mục</span>
+              <h4 id="catStatTotal" class="text-xl font-bold text-stone-900 font-serif-title">--</h4>
             </div>
-            <button onclick="openCategoryModal()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-sm transition flex items-center space-x-1.5 text-xs">
-              <i class="ph ph-plus-circle text-base"></i>
-              <span>Thêm Danh Mục</span>
-            </button>
+            <div class="w-10 h-10 rounded-xl bg-stone-100 text-stone-700 flex items-center justify-center text-lg"><i class="ph ph-folders"></i></div>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs text-stone-400 font-semibold block mb-0.5">Đang Hiển Thị (Client)</span>
+              <h4 id="catStatActive" class="text-xl font-bold text-emerald-600 font-serif-title">--</h4>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg"><i class="ph ph-eye"></i></div>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs text-stone-400 font-semibold block mb-0.5">Đang Ẩn</span>
+              <h4 id="catStatHidden" class="text-xl font-bold text-amber-600 font-serif-title">--</h4>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg"><i class="ph ph-eye-slash"></i></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
+          <div class="p-5 sm:p-6 border-b border-stone-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-bold text-stone-900 font-serif-title">Quản Lý Danh Mục Sản Phẩm</h2>
+              <p class="text-xs text-stone-400">Phân cấp danh mục, xem sản phẩm liên kết, ẩn/hiện an toàn hoặc chuyển danh mục trước khi xóa</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+              <input
+                type="text"
+                id="catSearchInput"
+                onkeyup="if(event.key==='Enter') loadAdminCategories(1)"
+                placeholder="Tìm tên, mã danh mục, slug..."
+                class="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-stone-700 focus:ring-1 focus:ring-rose-500 focus:outline-none w-48 sm:w-56"
+              />
+              <select id="catStatusFilter" onchange="loadAdminCategories(1)" class="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-stone-700 font-medium focus:outline-none">
+                <option value="all">Tất cả trạng thái</option>
+                <option value="active">Đang hiển thị</option>
+                <option value="hidden">Đang ẩn</option>
+              </select>
+              <select id="catSortFilter" onchange="loadAdminCategories(1)" class="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-stone-700 font-medium focus:outline-none">
+                <option value="order_asc">Theo thứ tự hiển thị</option>
+                <option value="newest">Mới tạo nhất</option>
+                <option value="name_asc">Tên A - Z</option>
+                <option value="products_desc">Nhiều sản phẩm nhất</option>
+              </select>
+              <button onclick="openCategoryModal()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-sm transition flex items-center space-x-1.5">
+                <i class="ph ph-plus-circle text-base"></i>
+                <span>Thêm Danh Mục</span>
+              </button>
+            </div>
           </div>
 
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs text-stone-600">
               <thead class="bg-stone-50 text-[11px] text-stone-400 uppercase border-b border-stone-200/80">
                 <tr>
-                  <th class="py-3 px-4 font-semibold">Thứ Tự</th>
-                  <th class="py-3 px-4 font-semibold">Icon & Tên Danh Mục</th>
-                  <th class="py-3 px-4 font-semibold">Đường Dẫn Slug</th>
-                  <th class="py-3 px-4 font-semibold">Huy Hiệu (Badge)</th>
-                  <th class="py-3 px-4 font-semibold">Số Mẫu Hoa Đang Bán</th>
+                  <th class="py-3 px-4 font-semibold">Hình Ảnh</th>
+                  <th class="py-3 px-4 font-semibold">Tên Danh Mục</th>
+                  <th class="py-3 px-4 font-semibold">Mã Danh Mục</th>
+                  <th class="py-3 px-4 font-semibold">Số Sản Phẩm</th>
+                  <th class="py-3 px-4 font-semibold text-center">Thứ Tự</th>
                   <th class="py-3 px-4 font-semibold">Trạng Thái</th>
+                  <th class="py-3 px-4 font-semibold">Ngày Tạo</th>
                   <th class="py-3 px-4 font-semibold text-right">Thao Tác</th>
                 </tr>
               </thead>
@@ -688,6 +741,7 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
               </tbody>
             </table>
           </div>
+          <div id="categoriesPagination" class="p-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500"></div>
         </div>
       </section>
 
@@ -781,28 +835,95 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
 
       <!-- ================= 8. VIEW: PROMOTIONS ================= -->
       <section id="view-promotions" class="hidden space-y-5">
-        <div class="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
-          <div class="p-5 sm:p-6 border-b border-stone-100 flex items-center justify-between">
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
             <div>
-              <h2 class="text-lg font-bold text-stone-900 font-serif-title">Chiến Dịch Khuyến Mãi & Mã Giảm Giá (Vouchers)</h2>
-              <p class="text-xs text-stone-400">Kiểm soát ngân sách chiết khấu và tự động cảnh báo an toàn biên lợi nhuận</p>
+              <span class="text-xs text-stone-400 font-semibold block mb-0.5">Đang Diễn Ra</span>
+              <h4 id="promoStatActive" class="text-xl font-bold text-emerald-600 font-serif-title">--</h4>
             </div>
-            <button onclick="openVoucherModal()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-sm transition flex items-center space-x-1.5 text-xs">
-              <i class="ph ph-ticket text-base"></i>
-              <span>Tạo Mã Voucher Mới</span>
-            </button>
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg"><i class="ph ph-lightning"></i></div>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs text-stone-400 font-semibold block mb-0.5">Đã Lên Lịch / Tạm Dừng</span>
+              <h4 id="promoStatScheduled" class="text-xl font-bold text-blue-600 font-serif-title">--</h4>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg"><i class="ph ph-calendar-check"></i></div>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs text-stone-400 font-semibold block mb-0.5">Tổng Lượt Đã Dùng</span>
+              <h4 id="promoStatTotalUsed" class="text-xl font-bold text-stone-900 font-serif-title">--</h4>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg"><i class="ph ph-ticket"></i></div>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs text-stone-400 font-semibold block mb-0.5">Tổng Tiền Đã Giảm</span>
+              <h4 id="promoStatTotalSaved" class="text-xl font-bold text-rose-600 font-serif-title">-- ₫</h4>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg"><i class="ph ph-currency-circle-dollar"></i></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
+          <div class="p-5 sm:p-6 border-b border-stone-100 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-bold text-stone-900 font-serif-title">Quản Lý Chương Trình Khuyến Mãi & Mã Giảm Giá</h2>
+                <p class="text-xs text-stone-400">Hẹn giờ tự động, giới hạn lượt dùng toàn hệ thống & từng tài khoản, phân phạm vi sản phẩm/danh mục</p>
+              </div>
+              <button onclick="openPromotionModal()" class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-sm transition flex items-center space-x-1.5 text-xs w-max">
+                <i class="ph ph-plus-circle text-base"></i>
+                <span>Tạo Chương Trình Khuyến Mãi</span>
+              </button>
+            </div>
+
+            <!-- Filters Bar -->
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+              <input
+                type="text"
+                id="promoSearchInput"
+                onkeyup="if(event.key==='Enter') loadAdminPromotions(1)"
+                placeholder="Tìm tên chương trình hoặc mã..."
+                class="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-stone-700 focus:ring-1 focus:ring-rose-500 focus:outline-none w-48 sm:w-56"
+              />
+              <select id="promoStatusFilter" onchange="loadAdminPromotions(1)" class="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-stone-700 font-medium focus:outline-none">
+                <option value="all">Tất cả trạng thái</option>
+                <option value="active">Đang diễn ra</option>
+                <option value="scheduled">Đã lên lịch</option>
+                <option value="paused">Tạm dừng</option>
+                <option value="draft">Nháp</option>
+                <option value="ended">Đã kết thúc</option>
+              </select>
+              <select id="promoTypeFilter" onchange="loadAdminPromotions(1)" class="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-stone-700 font-medium focus:outline-none">
+                <option value="all">Tất cả loại giảm</option>
+                <option value="percentage">Giảm theo %</option>
+                <option value="fixed_amount">Giảm tiền cố định (VNĐ)</option>
+              </select>
+              <input type="date" id="promoDateFrom" onchange="loadAdminPromotions(1)" title="Từ ngày" class="bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1.5 text-stone-700 focus:outline-none" />
+              <input type="date" id="promoDateTo" onchange="loadAdminPromotions(1)" title="Đến ngày" class="bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1.5 text-stone-700 focus:outline-none" />
+              <select id="promoSortFilter" onchange="loadAdminPromotions(1)" class="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-stone-700 font-medium focus:outline-none">
+                <option value="created_desc">Mới tạo nhất</option>
+                <option value="end_asc">Sắp hết hạn</option>
+                <option value="end_desc">Kết thúc muộn nhất</option>
+                <option value="used_desc">Dùng nhiều nhất</option>
+              </select>
+              <button onclick="resetPromoFilters()" class="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl font-medium transition">Đặt lại</button>
+            </div>
           </div>
 
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs text-stone-600">
               <thead class="bg-stone-50 text-[11px] text-stone-400 uppercase border-b border-stone-200/80">
                 <tr>
-                  <th class="py-3 px-4 font-semibold">Mã Voucher</th>
-                  <th class="py-3 px-4 font-semibold">Chiến Dịch / Mô Tả</th>
-                  <th class="py-3 px-4 font-semibold">Mức Giảm</th>
-                  <th class="py-3 px-4 font-semibold">Đơn Tối Thiểu</th>
-                  <th class="py-3 px-4 font-semibold">Đã Dùng / Giới Hạn</th>
-                  <th class="py-3 px-4 font-semibold">Thời Hạn</th>
+                  <th class="py-3 px-4 font-semibold">Chương Trình</th>
+                  <th class="py-3 px-4 font-semibold">Mã KM</th>
+                  <th class="py-3 px-4 font-semibold">Loại Giảm</th>
+                  <th class="py-3 px-4 font-semibold">Giá Trị & Điều Kiện</th>
+                  <th class="py-3 px-4 font-semibold">Thời Gian Hiệu Lực</th>
+                  <th class="py-3 px-4 font-semibold">Lượt (Tổng / Dùng / Còn)</th>
                   <th class="py-3 px-4 font-semibold">Trạng Thái</th>
                   <th class="py-3 px-4 font-semibold text-right">Thao Tác</th>
                 </tr>
@@ -812,6 +933,7 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
               </tbody>
             </table>
           </div>
+          <div id="promotionsPagination" class="p-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500"></div>
         </div>
       </section>
 
@@ -1451,54 +1573,121 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
   <!-- MODAL: ADD / EDIT CATEGORY -->
   <div id="categoryModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
     <div onclick="closeCategoryModal()" class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm"></div>
-    <div class="relative bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl z-10 border border-stone-200">
+    <div class="relative bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl z-10 border border-stone-200 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
         <div>
           <h3 id="catModalTitle" class="font-bold text-base text-stone-900 font-serif-title">Thêm Danh Mục Mới</h3>
-          <p class="text-xs text-stone-400">Tạo chủ đề hoa tươi hiển thị trên Menu</p>
+          <p class="text-xs text-stone-400">Thông tin chuẩn SEO, phân cấp và hiển thị danh mục sản phẩm</p>
         </div>
         <button onclick="closeCategoryModal()" class="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center text-stone-400">
           <i class="ph ph-x"></i>
         </button>
       </div>
 
+      <div id="catFormAlert" class="hidden mb-3 p-3 rounded-xl text-xs font-semibold"></div>
+
       <form onsubmit="handleCategorySubmit(event)" class="space-y-4 text-xs">
         <input type="hidden" id="catEditId" />
 
-        <div>
-          <label class="block font-semibold text-stone-700 mb-1">Tên Danh Mục *</label>
-          <input type="text" id="catName" required placeholder="Hoa Khai Trương Phát Tài..." class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Tên Danh Mục <span class="text-rose-600">*</span></label>
+            <input type="text" id="catName" required oninput="onCategoryNameInput()" placeholder="Ví dụ: Hoa Khai Trương" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:ring-1 focus:ring-rose-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Mã Danh Mục</label>
+            <input type="text" id="catCode" placeholder="Tự động tạo nếu để trống (VD: DM-HKT-01)" class="w-full uppercase font-mono bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:ring-1 focus:ring-rose-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Slug (URL SEO) <span class="text-rose-600">*</span></label>
+            <input type="text" id="catSlug" required oninput="this.dataset.manual='1'" placeholder="hoa-khai-truong" class="w-full font-mono bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:ring-1 focus:ring-rose-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Danh Mục Cha (Phân Cấp)</label>
+            <select id="catParentId" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:ring-1 focus:ring-rose-500 focus:outline-none">
+              <option value="">-- Danh mục gốc (Không có cha) --</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Thứ Tự Hiển Thị</label>
+            <input type="number" id="catDisplayOrder" min="0" value="0" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Trạng Thái Hiển Thị</label>
+            <select id="catStatus" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-semibold focus:outline-none">
+              <option value="active">Hiển thị (Hoạt động trên web)</option>
+              <option value="hidden">Ẩn (Không hiện bên Client)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Icon (Phosphor Class)</label>
+            <input type="text" id="catIcon" value="ph-flower-lotus" class="w-full font-mono bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block font-semibold text-stone-700 mb-1">Huy Hiệu (Badge)</label>
+            <input type="text" id="catBadge" placeholder="Mới, Hot, VIP..." class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+          </div>
         </div>
 
         <div>
-          <label class="block font-semibold text-stone-700 mb-1">Đường Dẫn Tĩnh (Slug) *</label>
-          <input type="text" id="catSlug" required placeholder="hoa-khai-truong" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+          <label class="block font-semibold text-stone-700 mb-1">Hình Ảnh Đại Diện (URL)</label>
+          <div class="flex items-center gap-3">
+            <input type="text" id="catImage" oninput="previewCategoryImage(this.value)" placeholder="https://..." class="flex-1 bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+            <img id="catImagePreview" src="" alt="Preview" class="hidden w-12 h-12 rounded-xl object-cover border border-stone-200 flex-shrink-0" />
+          </div>
         </div>
 
         <div>
-          <label class="block font-semibold text-stone-700 mb-1">Phosphor Icon Class</label>
-          <input type="text" id="catIcon" value="ph-flower-lotus" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
-        </div>
-
-        <div>
-          <label class="block font-semibold text-stone-700 mb-1">Huy Hiệu (Badge Tag)</label>
-          <input type="text" id="catBadge" placeholder="Mới, Hot, Sale..." class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
-        </div>
-
-        <div>
-          <label class="block font-semibold text-stone-700 mb-1">Thứ Tự Hiển Thị</label>
-          <input type="number" id="catDisplayOrder" value="0" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+          <label class="block font-semibold text-stone-700 mb-1">Mô Tả Ngắn</label>
+          <textarea id="catDescription" rows="2" placeholder="Mô tả đặc trưng của danh mục hoa..." class="w-full bg-stone-50 border border-stone-300 rounded-xl p-2.5 text-stone-800 focus:ring-1 focus:ring-rose-500 focus:outline-none"></textarea>
         </div>
 
         <div class="pt-3 border-t border-stone-100 flex items-center justify-end space-x-2">
-          <button type="button" onclick="closeCategoryModal()" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl font-medium transition">
-            Hủy
-          </button>
-          <button type="submit" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow transition">
-            Lưu Danh Mục
-          </button>
+          <button type="button" onclick="closeCategoryModal()" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl font-medium transition">Hủy</button>
+          <button type="submit" id="catSaveBtn" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow transition">Lưu Danh Mục</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CATEGORY DETAIL -->
+  <div id="categoryDetailModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div onclick="closeCategoryDetailModal()" class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm"></div>
+    <div class="relative bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl z-10 border border-stone-200 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
+        <div>
+          <h3 class="font-bold text-base text-stone-900 font-serif-title">Chi Tiết Danh Mục Sản Phẩm</h3>
+          <p class="text-xs text-stone-400" id="catDetailSubtitle">--</p>
+        </div>
+        <button onclick="closeCategoryDetailModal()" class="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center text-stone-400">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+      <div id="categoryDetailBody" class="space-y-4 text-xs"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: SAFE DELETE CATEGORY -->
+  <div id="categoryDeleteModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div onclick="closeCategoryDeleteModal()" class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm"></div>
+    <div class="relative bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl z-10 border border-stone-200">
+      <div class="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
+        <div>
+          <h3 class="font-bold text-base text-stone-900 font-serif-title">Xác Nhận Xóa Danh Mục</h3>
+          <p class="text-xs text-stone-400" id="catDeleteTitle">--</p>
+        </div>
+        <button onclick="closeCategoryDeleteModal()" class="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center text-stone-400">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+      <div id="catDeleteBody" class="space-y-4 text-xs"></div>
     </div>
   </div>
 
@@ -1615,65 +1804,232 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
     </div>
   </div>
 
-  <!-- MODAL: ADD VOUCHER -->
-  <div id="voucherModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
-    <div onclick="closeVoucherModal()" class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm"></div>
-    <div class="relative bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl z-10 border border-stone-200">
+  <!-- MODAL: ADD / EDIT PROMOTION -->
+  <div id="promotionModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div onclick="closePromotionModal()" class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm"></div>
+    <div class="relative bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl z-10 border border-stone-200 max-h-[92vh] overflow-y-auto">
       <div class="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
         <div>
-          <h3 class="font-bold text-base text-stone-900 font-serif-title">Phát Hành Mã Voucher Mới</h3>
-          <p class="text-xs text-stone-400">Kiểm tra an toàn biên lợi nhuận trước khi kích hoạt</p>
+          <h3 id="promoModalTitle" class="font-bold text-base text-stone-900 font-serif-title">Tạo Chương Trình Khuyến Mãi</h3>
+          <p class="text-xs text-stone-400">Thiết lập điều kiện giảm giá, lịch chạy tự động (Asia/Ho_Chi_Minh) & phạm vi áp dụng</p>
         </div>
-        <button onclick="closeVoucherModal()" class="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center text-stone-400">
+        <button onclick="closePromotionModal()" class="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center text-stone-400">
           <i class="ph ph-x"></i>
         </button>
       </div>
 
-      <form onsubmit="handleVoucherSubmit(event)" class="space-y-4 text-xs">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block font-semibold text-stone-700 mb-1">Mã Giảm Giá (Code) *</label>
-            <input type="text" id="vouchCode" required placeholder="BLOOM50K..." class="w-full uppercase font-mono bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+      <div id="promoFormAlert" class="hidden mb-3 p-3 rounded-xl text-xs font-semibold"></div>
+      <div id="promoLockNotice" class="hidden mb-3 p-3 rounded-xl text-xs bg-amber-50 border border-amber-200 text-amber-800">
+        <i class="ph ph-lock-key mr-1"></i> Chương trình đã phát sinh đơn hàng áp dụng nên mã gốc và giá trị giảm được khóa để bảo toàn dữ liệu đối soát. Bạn vẫn có thể sửa tên, mô tả, gia hạn thời gian hoặc tăng số lượt sử dụng.
+      </div>
+
+      <form onsubmit="handlePromotionSubmit(event)" class="space-y-5 text-xs">
+        <input type="hidden" id="promoEditId" />
+
+        <!-- Nhóm 1: Thông tin chiến dịch & Mã -->
+        <div class="p-4 rounded-2xl bg-stone-50/80 border border-stone-200/80 space-y-3">
+          <div class="font-bold text-stone-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+            <i class="ph ph-megaphone text-rose-600 text-sm"></i>
+            <span>1. Thông Tin Chương Trình & Mã Khuyến Mãi</span>
           </div>
-          <div>
-            <label class="block font-semibold text-stone-700 mb-1">Loại Giảm Giá *</label>
-            <select id="vouchType" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none">
-              <option value="fixed_amount">Giảm cố định (VND)</option>
-              <option value="percentage">Giảm theo % (Phần trăm)</option>
-            </select>
-          </div>
-          <div>
-            <label class="block font-semibold text-stone-700 mb-1">Giá Trị Giảm *</label>
-            <input type="number" id="vouchValue" required min="1" placeholder="50000 hoặc 10" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
-          </div>
-          <div>
-            <label class="block font-semibold text-stone-700 mb-1">Đơn Hàng Tối Thiểu (VND) *</label>
-            <input type="number" id="vouchMinOrder" required min="0" step="10000" placeholder="500000" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
-          </div>
-          <div>
-            <label class="block font-semibold text-stone-700 mb-1">Giới Hạn Lượt Dùng</label>
-            <input type="number" id="vouchLimit" value="100" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
-          </div>
-          <div>
-            <label class="block font-semibold text-stone-700 mb-1">Số Ngày Có Hiệu Lực</label>
-            <input type="number" id="vouchDays" value="30" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="sm:col-span-2">
+              <label class="block font-semibold text-stone-700 mb-1">Tên Chương Trình <span class="text-rose-600">*</span></label>
+              <input type="text" id="promoName" required placeholder="Ví dụ: Tuần Lễ Hoa Khai Trương / Sinh Nhật Tháng 11..." class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:ring-1 focus:ring-rose-500 focus:outline-none" />
+            </div>
+
+            <div id="promoModeWrap">
+              <label class="block font-semibold text-stone-700 mb-1">Hình Thức Mã</label>
+              <select id="promoCodeMode" onchange="onPromoCodeModeChange()" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none">
+                <option value="single">Một mã chung cho chiến dịch</option>
+                <option value="batch">Tạo nhiều mã riêng biệt ngẫu nhiên</option>
+              </select>
+            </div>
+
+            <div id="promoBatchCountWrap" class="hidden">
+              <label class="block font-semibold text-stone-700 mb-1">Số Lượng Mã Riêng (2–50 mã)</label>
+              <input type="number" id="promoBatchCount" min="2" max="50" value="5" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-mono focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block font-semibold text-stone-700 mb-1">Tiền Tố Mã (Prefix)</label>
+              <div class="flex gap-2">
+                <input type="text" id="promoPrefix" value="BLOOM" maxlength="12" placeholder="BLOOM, FLOWER..." class="w-32 uppercase font-mono bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+                <button type="button" id="btnGenPromoCode" onclick="generatePromotionCode()" class="flex-1 px-3 py-2 bg-stone-900 hover:bg-black text-white rounded-xl font-semibold transition flex items-center justify-center gap-1">
+                  <i class="ph ph-sparkle"></i>
+                  <span>Tạo Mã Tự Động</span>
+                </button>
+              </div>
+            </div>
+
+            <div id="promoSingleCodeWrap">
+              <label class="block font-semibold text-stone-700 mb-1">Mã Khuyến Mãi (Code) <span class="text-rose-600">*</span></label>
+              <input type="text" id="promoCode" oninput="checkPromoCodeDuplicate()" placeholder="BLOOM10, FLOWER20..." class="w-full uppercase font-mono bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-bold focus:ring-1 focus:ring-rose-500 focus:outline-none" />
+              <span id="promoCodeCheckMsg" class="text-[11px] mt-1 block text-stone-400">Có thể nhập thủ công hoặc bấm "Tạo Mã Tự Động".</span>
+            </div>
+
+            <div class="sm:col-span-2">
+              <label class="block font-semibold text-stone-700 mb-1">Mô Tả Chương Trình</label>
+              <textarea id="promoDesc" rows="2" placeholder="Nội dung hiển thị cho khách hàng về ưu đãi và điều kiện..." class="w-full bg-white border border-stone-300 rounded-xl p-2.5 text-stone-800 focus:outline-none"></textarea>
+            </div>
           </div>
         </div>
 
-        <div>
-          <label class="block font-semibold text-stone-700 mb-1">Mô Tả Chương Trình</label>
-          <input type="text" id="vouchDesc" placeholder="Ưu đãi tri ân khách hàng thân thiết..." class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-800 focus:outline-none" />
+        <!-- Nhóm 2: Loại giảm giá & Giới hạn tiền -->
+        <div class="p-4 rounded-2xl bg-stone-50/80 border border-stone-200/80 space-y-3">
+          <div class="font-bold text-stone-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+            <i class="ph ph-percent text-rose-600 text-sm"></i>
+            <span>2. Mức Giảm Giá & Giới Hạn Đơn Hàng</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block font-semibold text-stone-700 mb-1">Loại Giảm Giá <span class="text-rose-600">*</span></label>
+              <select id="promoDiscountType" onchange="onPromoDiscountTypeChange()" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-semibold focus:outline-none">
+                <option value="percentage">Giảm theo phần trăm (%)</option>
+                <option value="fixed_amount">Giảm số tiền cố định (VNĐ)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block font-semibold text-stone-700 mb-1">Giá Trị Giảm <span class="text-rose-600">*</span></label>
+              <div class="relative flex items-center">
+                <input type="number" id="promoDiscountValue" required min="1" step="any" placeholder="10" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 pr-14 text-stone-900 font-mono font-bold focus:outline-none" />
+                <span id="promoValueUnit" class="absolute right-3 font-bold text-rose-600 text-[11px] bg-rose-50 px-2 py-0.5 rounded">%</span>
+              </div>
+            </div>
+
+            <div id="promoMaxDiscountWrap">
+              <label class="block font-semibold text-stone-700 mb-1">Giảm Tối Đa (Khi dùng %)</label>
+              <div class="relative flex items-center">
+                <input type="number" id="promoMaxDiscount" min="0" step="1000" placeholder="100000" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 pr-14 text-stone-800 font-mono focus:outline-none" />
+                <span class="absolute right-3 text-stone-400 text-[11px]">VNĐ</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="block font-semibold text-stone-700 mb-1">Giá Trị Đơn Tối Thiểu</label>
+              <div class="relative flex items-center">
+                <input type="number" id="promoMinOrder" min="0" step="10000" value="0" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 pr-14 text-stone-800 font-mono focus:outline-none" />
+                <span class="absolute right-3 text-stone-400 text-[11px]">VNĐ</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="block font-semibold text-stone-700 mb-1">Giảm Tối Đa Mỗi Đơn</label>
+              <div class="relative flex items-center">
+                <input type="number" id="promoMaxPerOrder" min="0" step="1000" placeholder="Không giới hạn" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 pr-14 text-stone-800 font-mono focus:outline-none" />
+                <span class="absolute right-3 text-stone-400 text-[11px]">VNĐ</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Nhóm 3: Lượt dùng & Lịch chạy -->
+        <div class="p-4 rounded-2xl bg-stone-50/80 border border-stone-200/80 space-y-3">
+          <div class="font-bold text-stone-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+            <i class="ph ph-clock text-rose-600 text-sm"></i>
+            <span>3. Lượt Sử Dụng, Hẹn Giờ & Trạng Thái (GMT+7 Việt Nam)</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block font-semibold text-stone-700 mb-1">Tổng Số Lượt Sử Dụng</label>
+              <input type="number" id="promoUsageLimit" min="0" value="100" placeholder="0 = Không giới hạn" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-mono focus:outline-none" />
+              <span class="text-[10px] text-stone-400">Nhập 0 nếu không giới hạn tổng lượt.</span>
+            </div>
+
+            <div>
+              <label class="block font-semibold text-stone-700 mb-1">Số Lượt Mỗi Khách</label>
+              <input type="number" id="promoPerUserLimit" min="0" value="1" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-mono focus:outline-none" />
+              <span class="text-[10px] text-stone-400">Mỗi tài khoản / SĐT (0 = không giới hạn).</span>
+            </div>
+
+            <div>
+              <label class="block font-semibold text-stone-700 mb-1">Trạng Thái Phát Hành</label>
+              <select id="promoStatus" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-semibold focus:outline-none">
+                <option value="active">Kích hoạt (Tự lên lịch / Đang diễn ra)</option>
+                <option value="draft">Lưu Nháp (Chưa cho áp dụng)</option>
+                <option value="paused">Tạm dừng</option>
+              </select>
+            </div>
+
+            <div class="sm:col-span-1">
+              <label class="block font-semibold text-stone-700 mb-1">Ngày Giờ Bắt Đầu <span class="text-rose-600">*</span></label>
+              <input type="datetime-local" id="promoStartAt" required class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-mono focus:outline-none" />
+            </div>
+
+            <div class="sm:col-span-1">
+              <label class="block font-semibold text-stone-700 mb-1">Ngày Giờ Kết Thúc <span class="text-rose-600">*</span></label>
+              <input type="datetime-local" id="promoEndAt" required class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-mono focus:outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Nhóm 4: Phạm vi & Đối tượng -->
+        <div class="p-4 rounded-2xl bg-stone-50/80 border border-stone-200/80 space-y-3">
+          <div class="font-bold text-stone-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+            <i class="ph ph-funnel text-rose-600 text-sm"></i>
+            <span>4. Phạm Vi Sản Phẩm & Điều Kiện Khách Hàng</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-semibold text-stone-700 mb-1">Phạm Vi Áp Dụng</label>
+              <select id="promoScopeType" onchange="onPromoScopeTypeChange()" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-semibold focus:outline-none">
+                <option value="all">Toàn bộ sản phẩm</option>
+                <option value="category">Chỉ áp dụng cho danh mục cụ thể</option>
+                <option value="product">Chỉ áp dụng cho sản phẩm cụ thể</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block font-semibold text-stone-700 mb-1">Đối Tượng Khách Hàng</label>
+              <select id="promoCustomerScope" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-stone-800 font-semibold focus:outline-none">
+                <option value="all">Tất cả khách hàng</option>
+                <option value="new_customer">Chỉ khách hàng mới (Đơn đầu tiên)</option>
+                <option value="vip">Chỉ khách hàng VIP (Từ 5 đơn / 3tr+)</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="promoCategorySelectorWrap" class="hidden pt-2">
+            <label class="block font-semibold text-stone-700 mb-1.5">Chọn Các Danh Mục Được Áp Dụng:</label>
+            <div id="promoCategoryChecklist" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto bg-white p-3 rounded-xl border border-stone-200"></div>
+          </div>
+
+          <div id="promoProductSelectorWrap" class="hidden pt-2 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <label class="font-semibold text-stone-700">Chọn Các Sản Phẩm Được Áp Dụng:</label>
+              <input type="text" id="promoProductSearch" oninput="filterPromoProductChecklist(this.value)" placeholder="Lọc nhanh tên / SKU..." class="bg-white border border-stone-200 rounded-lg px-2.5 py-1 text-[11px] w-44 focus:outline-none" />
+            </div>
+            <div id="promoProductChecklist" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto bg-white p-3 rounded-xl border border-stone-200"></div>
+          </div>
         </div>
 
         <div class="pt-3 border-t border-stone-100 flex items-center justify-end space-x-2">
-          <button type="button" onclick="closeVoucherModal()" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl font-medium transition">
-            Hủy
-          </button>
-          <button type="submit" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow transition">
-            Kích Hoạt Voucher
-          </button>
+          <button type="button" onclick="closePromotionModal()" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl font-medium transition">Hủy</button>
+          <button type="submit" id="promoSaveBtn" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow transition">Lưu Chương Trình</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: PROMOTION DETAIL & USAGE HISTORY -->
+  <div id="promotionDetailModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div onclick="closePromotionDetailModal()" class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm"></div>
+    <div class="relative bg-white rounded-3xl max-w-4xl w-full p-6 shadow-2xl z-10 border border-stone-200 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
+        <div>
+          <h3 class="font-bold text-base text-stone-900 font-serif-title">Chi Tiết Chương Trình Khuyến Mãi</h3>
+          <p class="text-xs text-stone-400" id="promoDetailSubtitle">--</p>
+        </div>
+        <button onclick="closePromotionDetailModal()" class="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center text-stone-400">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+      <div id="promotionDetailBody" class="space-y-4 text-xs"></div>
     </div>
   </div>
 
@@ -1830,7 +2186,10 @@ $adminRole = $roleLabels[$rawRole] ?? 'Nhân Viên';
     <img id="adminLightboxImg" src="" alt="Ảnh hoa thực tế" class="max-w-full max-h-[90vh] rounded-2xl object-contain shadow-2xl border border-white/20" onclick="event.stopPropagation()" />
   </div>
 
+  <!-- ADMIN TOAST CONTAINER -->
+  <div id="adminToastContainer" class="fixed top-5 right-5 z-[90] flex flex-col items-end space-y-2 pointer-events-none"></div>
+
   <!-- JAVASCRIPT MASTER SPA CONTROLLER -->
-  <script src="js/admin_app.js"></script>
+  <script src="js/admin_app.js?v=2.4"></script>
 </body>
 </html>

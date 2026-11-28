@@ -2,8 +2,10 @@
    BLOOMORA AI CHATBOT WIDGET STYLES
    ========================================================================== */
 
-#bloomora-chat-widget {
-  font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif;
+#bloomora-chat-widget,
+.bloomora-chat-window,
+.bloomora-chat-launcher {
+  font-family: var(--font-sans, 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
   z-index: 35;
 }
 

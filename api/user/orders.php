@@ -5,7 +5,7 @@ init_secure_session(); api_only_method('GET');
 if (empty($_SESSION['user_id'])) json_response(['success'=>false,'message'=>'Vui lòng đăng nhập để xem lịch sử đơn hàng.'],401);
 try {
     $pdo=getDBConnection(); $uid=(int)$_SESSION['user_id'];
-    $st=$pdo->prepare("SELECT id,order_code,receiver_name,receiver_phone,receiver_address,city,delivery_date,delivery_time_slot,card_message,ribbon_message,subtotal,shipping_fee,discount_amount,total_amount,payment_method,payment_status,order_status,photo_proof,created_at FROM orders WHERE user_id=:uid ORDER BY id DESC");
+    $st=$pdo->prepare("SELECT id,order_code,receiver_name,receiver_phone,receiver_address,city,delivery_date,delivery_time_slot,card_message,ribbon_message,voucher_code,subtotal,shipping_fee,discount_amount,total_amount,payment_method,payment_status,order_status,photo_proof,created_at FROM orders WHERE user_id=:uid ORDER BY id DESC");
     $st->execute([':uid'=>$uid]); $orders=$st->fetchAll();
     if(!empty($orders)){
         $ids=array_column($orders,'id'); $ph=implode(',',array_fill(0,count($ids),'?'));

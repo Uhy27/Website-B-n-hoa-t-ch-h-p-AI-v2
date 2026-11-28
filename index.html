@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&display=swap"
     rel="stylesheet">
 
   <!-- Tailwind CSS CDN -->
@@ -21,14 +21,18 @@
   <!-- Phosphor Icons (Bộ icon cao cấp, thanh mảnh) -->
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
-  <!-- Custom CSS với Cache Busters v2.2 -->
-  <link rel="stylesheet" href="css/style.css?v=2.2">
-  <link rel="stylesheet" href="css/chatbot.css?v=2.2">
+  <!-- Custom CSS với Cache Busters v2.4 -->
+  <link rel="stylesheet" href="css/style.css?v=2.4">
+  <link rel="stylesheet" href="css/chatbot.css?v=2.4">
 
   <script>
     tailwind.config = {
       theme: {
         extend: {
+          fontFamily: {
+            sans: ["'Be Vietnam Pro'", '-apple-system', 'BlinkMacSystemFont', "'Segoe UI'", 'Roboto', "'Helvetica Neue'", 'Arial', 'sans-serif'],
+            serif: ["'Playfair Display'", "'Be Vietnam Pro'", 'Georgia', "'Times New Roman'", 'serif'],
+          },
           colors: {
             rose: {
               50: '#fff1f2',
@@ -205,7 +209,7 @@
       <div class="flex items-center justify-between h-11">
         <ul class="flex items-center gap-1 lg:gap-2 text-[13px] font-medium text-stone-700 whitespace-nowrap py-1">
           <!-- Hoa Sinh Nhật -->
-          <li>
+          <li data-nav-cat="sinh-nhat">
             <a href="javascript:void(0)" onclick="navFilterCategory('sinh-nhat', 'Hoa Sinh Nhật Tươi Sắc')"
               class="px-2.5 py-1.5 rounded-lg hover:text-rose-600 hover:bg-rose-50/70 transition-colors flex items-center">
               <span>Hoa Sinh Nhật</span>
@@ -213,7 +217,7 @@
           </li>
 
           <!-- Hoa Khai Trương -->
-          <li>
+          <li data-nav-cat="khai-truong">
             <a href="javascript:void(0)" onclick="navFilterCategory('khai-truong', 'Hoa Khai Trương Hồng Phát')"
               class="px-2.5 py-1.5 rounded-lg hover:text-rose-600 hover:bg-rose-50/70 transition-colors flex items-center">
               <span>Hoa Khai Trương</span>
@@ -221,7 +225,7 @@
           </li>
 
           <!-- Lan Hồ Điệp -->
-          <li>
+          <li data-nav-cat="lan-ho-diep">
             <a href="javascript:void(0)" onclick="navFilterCategory('lan-ho-diep', 'Chậu Lan Hồ Điệp Sang Trọng')"
               class="px-2.5 py-1.5 rounded-lg hover:text-rose-600 hover:bg-rose-50/70 transition-colors flex items-center">
               <span>Lan Hồ Điệp</span>
@@ -229,7 +233,7 @@
           </li>
 
           <!-- Hoa Tang Lễ -->
-          <li>
+          <li data-nav-cat="chia-buon">
             <a href="javascript:void(0)" onclick="navFilterCategory('chia-buon', 'Hoa Tang Lễ & Chia Buồn Thành Kính')"
               class="px-2.5 py-1.5 rounded-lg hover:text-rose-600 hover:bg-rose-50/70 transition-colors flex items-center">
               <span>Hoa Tang Lễ</span>
@@ -771,10 +775,21 @@
 
     <!-- Tóm tắt & Nút thanh toán -->
     <div class="p-4 bg-stone-50 border-t border-stone-200 space-y-3">
+      <div id="cartPromoSuggestion" class="hidden bg-rose-50 border border-rose-200/80 rounded-xl px-3 py-2 text-[11px] text-rose-700 items-center justify-between gap-2">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <i class="ph ph-ticket-bold text-rose-600 text-sm shrink-0"></i>
+          <span id="cartPromoSuggestionText" class="truncate font-medium">Có ưu đãi đang áp dụng</span>
+        </div>
+        <button type="button" onclick="openCheckoutDrawer()" class="text-[11px] font-bold text-rose-700 underline shrink-0 hover:text-rose-900">Chọn mã</button>
+      </div>
       <div class="space-y-1 text-xs text-stone-600">
         <div class="flex justify-between">
           <span>Tạm tính:</span>
           <span id="cartSubtotal" class="font-bold text-stone-900">0₫</span>
+        </div>
+        <div id="cartDiscountRow" class="hidden justify-between text-rose-600">
+          <span>Giảm giá (<span id="cartVoucherCodeLabel" class="font-mono font-bold"></span>):</span>
+          <span id="cartDiscountAmount" class="font-bold">-0₫</span>
         </div>
         <div class="flex justify-between text-emerald-600">
           <span>Băng rôn & Thiệp chúc mừng:</span>
@@ -971,18 +986,65 @@
           </div>
         </div>
 
-        <!-- Tóm tắt & Xác nhận -->
-        <div class="pt-4 border-t border-stone-200 flex items-center justify-between">
-          <div>
-            <span class="text-xs text-stone-400 block">Tổng thanh toán:</span>
-            <span id="checkoutSummaryTotal" class="text-xl font-extrabold text-rose-600 font-serif-title">0₫</span>
+        <!-- Khuyến mãi & Mã giảm giá -->
+        <div class="bg-rose-50/60 border border-rose-200/80 rounded-2xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="ph ph-ticket-bold text-sm"></i>
+              <span>Khuyến Mãi &amp; Mã Giảm Giá</span>
+            </h4>
+            <span id="activePromotionsCountBadge" class="hidden text-[11px] font-semibold bg-white text-rose-600 border border-rose-200 px-2 py-0.5 rounded-full"></span>
           </div>
 
-          <button type="submit"
-            class="py-3 px-8 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-rose-600/30 transition flex items-center space-x-2">
-            <i class="ph ph-check-circle-bold text-base"></i>
-            <span>Hoàn Tất Đặt Hoa</span>
-          </button>
+          <div class="flex gap-2">
+            <input type="text" id="voucherCodeInput" placeholder="Nhập mã giảm giá (VD: BLOOM10)"
+              class="flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-mono uppercase focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();applyVoucherCode();}">
+            <button type="button" id="voucherApplyBtn" onclick="applyVoucherCode()"
+              class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shrink-0">
+              Áp dụng
+            </button>
+            <button type="button" id="voucherClearBtn" onclick="clearAppliedVoucher()"
+              class="hidden px-3 py-2 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-xl text-xs font-bold transition shrink-0">
+              Bỏ mã
+            </button>
+          </div>
+
+          <div id="voucherFeedback" class="hidden text-xs rounded-xl px-3 py-2 font-medium"></div>
+
+          <div id="activePromotionsWrapper" class="space-y-2">
+            <p class="text-[11px] text-stone-500 font-medium">Ưu đãi khả dụng hôm nay (nhấn để áp dụng):</p>
+            <div id="activePromotionsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-0.5">
+              <div class="text-xs text-stone-400 col-span-full py-1">Đang tải chương trình khuyến mãi...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tóm tắt & Xác nhận -->
+        <div class="pt-4 border-t border-stone-200 space-y-3">
+          <div class="bg-stone-50 border border-stone-200/80 rounded-xl p-3 space-y-1.5 text-xs text-stone-600">
+            <div class="flex justify-between">
+              <span>Tạm tính (trước giảm):</span>
+              <span id="checkoutSubtotal" class="font-semibold text-stone-900">0₫</span>
+            </div>
+            <div id="checkoutDiscountRow" class="hidden justify-between text-rose-600">
+              <span>Giảm giá (<span id="checkoutVoucherLabel" class="font-mono font-bold"></span>):</span>
+              <span id="checkoutDiscountAmount" class="font-bold">-0₫</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-xs text-stone-400 block">Tổng thanh toán:</span>
+              <span id="checkoutSummaryTotal" class="text-xl font-extrabold text-rose-600 font-serif-title">0₫</span>
+            </div>
+
+            <button type="submit"
+              class="py-3 px-8 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-rose-600/30 transition flex items-center space-x-2">
+              <i class="ph ph-check-circle-bold text-base"></i>
+              <span>Hoàn Tất Đặt Hoa</span>
+            </button>
+          </div>
         </div>
 
       </form>
@@ -1258,10 +1320,10 @@
 
   </div>
 
-  <!-- Scripts với Cache Busters v2.2 -->
-  <script src="js/data.js"></script>
-  <script src="js/app.js?v=2.2"></script>
-  <script src="js/chatbot.js?v=2.2"></script>
+  <!-- Scripts với Cache Busters v2.4 -->
+  <script src="js/data.js?v=2.4"></script>
+  <script src="js/app.js?v=2.4"></script>
+  <script src="js/chatbot.js?v=2.4"></script>
 </body>
 
 </html>
